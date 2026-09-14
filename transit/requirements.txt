@@ -1,0 +1,11 @@
+pandas
+numpy
+scikit-learn
+pyarrow
+jupyter
+matplotlib
+seaborn
+pydantic
+pytest
+meteostat
+kaggle

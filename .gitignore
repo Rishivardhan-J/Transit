@@ -1,0 +1,17 @@
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+transit/data/raw/*
+!transit/data/raw/.gitkeep
+transit/data/processed/*
+!transit/data/processed/.gitkeep
+transit/data/benchmark/*
+!transit/data/benchmark/.gitkeep
+transit/results/models/*
+!transit/results/models/.gitkeep
+transit/results/routes/*
+!transit/results/routes/.gitkeep
+.ipynb_checkpoints/
+*.nbconvert.ipynb
+.env
