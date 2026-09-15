@@ -9,3 +9,7 @@ pydantic
 pytest
 meteostat
 kaggle
+lightgbm
+shap
+mlflow
+xgboost
