@@ -16,3 +16,17 @@ xgboost
 pyvrp
 ortools
 scipy
+fastapi
+uvicorn[standard]
+sqlalchemy
+alembic
+psycopg2-binary
+celery
+redis
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+websockets
+sentry-sdk
+prometheus-client
+pydantic-settings

@@ -4,11 +4,11 @@ services:
   postgres:
     image: postgres:15
     environment:
-      POSTGRES_USER: transit_user
-      POSTGRES_PASSWORD: transit_password
-      POSTGRES_DB: transit_db
+      POSTGRES_USER: ${POSTGRES_USER:-transit_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-transit_password}
+      POSTGRES_DB: ${POSTGRES_DB:-transit_db}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -18,6 +18,30 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+
+  api:
+    build: .
+    command: bash -c "alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload"
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+
+  worker:
+    build: .
+    command: celery -A backend.jobs.celery_app worker --loglevel=info
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
 
 volumes:
   postgres_data:
