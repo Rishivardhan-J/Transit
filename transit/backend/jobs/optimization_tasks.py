@@ -49,7 +49,7 @@ def run_batch_optimization(self, order_ids: list, vehicle_ids: list, solver_type
     finally:
         db.close()
 
-@celery_app.task(bind=True)
+@celery_app.task(bind=True, soft_time_limit=5, time_limit=10)
 def run_incremental_reoptimization(self, optimizer_run_id: str, disruption_event: dict):
     job_id = self.request.id
     publish_status(job_id, "running")
