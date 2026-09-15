@@ -13,3 +13,6 @@ lightgbm
 shap
 mlflow
 xgboost
+pyvrp
+ortools
+scipy
