@@ -17,7 +17,9 @@ def train_rf(data_path: str, pipeline_path: str, dataset_name: str):
     Trains a Random Forest baseline for p50 (point estimate).
     Logs to MLflow.
     """
-    mlflow.set_tracking_uri("sqlite:///mlruns.db")
+    # Setup MLflow
+    mlflow_uri = "file:" + os.path.abspath("transit/results/mlruns")
+    mlflow.set_tracking_uri(mlflow_uri)
     mlflow.set_experiment(f"Transit_Phase2_{dataset_name}")
     
     print(f"Loading data from {data_path}...")

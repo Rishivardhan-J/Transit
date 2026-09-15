@@ -19,7 +19,8 @@ def train_lgbm(data_path: str, pipeline_path: str, dataset_name: str):
     Logs to MLflow.
     """
     # Setup MLflow
-    mlflow.set_tracking_uri("sqlite:///mlruns.db")
+    mlflow_uri = "file:" + os.path.abspath("transit/results/mlruns")
+    mlflow.set_tracking_uri(mlflow_uri)
     mlflow.set_experiment(f"Transit_Phase2_{dataset_name}")
     
     print(f"Loading data from {data_path}...")
@@ -41,7 +42,7 @@ def train_lgbm(data_path: str, pipeline_path: str, dataset_name: str):
     X_test = pipeline.transform(X_test_raw)
     
     # Identify categorical columns (OrdinalEncoder converts to numeric, but we tell LGBM they are categorical)
-    cat_cols = [c for c in X_train.columns if c in pipeline.named_steps['categorical_encoder'].cat_cols]
+    cat_cols = [c for c in X_train.columns if c in pipeline.named_steps['encoder'].cat_cols]
     
     with mlflow.start_run(run_name="LightGBM_Quantiles"):
         mlflow.log_param("model_type", "lightgbm")

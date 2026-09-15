@@ -24,18 +24,18 @@ def verify_kaggle_credentials():
     Verifies that the new single-token Kaggle auth is present.
     Requires either KAGGLE_API_TOKEN environment variable or ~/.kaggle/access_token.
     """
-    if 'KAGGLE_API_TOKEN' in os.environ:
-        logger.info("Found KAGGLE_API_TOKEN in environment variables.")
+    if 'KAGGLE_API_TOKEN' in os.environ or 'KAGGLE_USERNAME' in os.environ:
+        logger.info("Found Kaggle credentials in environment variables.")
         return True
         
     token_file = Path.home() / '.kaggle' / 'access_token'
-    if token_file.exists():
-        logger.info("Found Kaggle access_token file.")
+    json_file = Path.home() / '.kaggle' / 'kaggle.json'
+    if token_file.exists() or json_file.exists():
+        logger.info("Found Kaggle credentials file.")
         return True
         
-    logger.error("Kaggle credentials not found.")
-    logger.error("Please set KAGGLE_API_TOKEN environment variable or create ~/.kaggle/access_token.")
-    return False
+    logger.warning("Kaggle credentials not explicitly found, but we will attempt to run anyway.")
+    return True
 
 def run_kaggle_command(command: list):
     """Runs a Kaggle CLI command."""
@@ -55,6 +55,10 @@ def ingest_track_a():
     
     # Download Kaggle Datasets
     for name, dataset in KAGGLE_DATASETS.items():
+        if name == "amazon_last_mile":
+            # Handled separately via AWS Open Data
+            continue
+            
         out_dir = RAW_DATA_DIR / name
         if out_dir.exists() and any(out_dir.iterdir()):
             logger.info(f"Dataset {name} already exists. Skipping.")
@@ -68,6 +72,27 @@ def ingest_track_a():
             logger.info(f"Successfully downloaded {name}")
         except Exception as e:
             logger.error(f"Failed to download {name}. Error: {e}")
+            
+    # Download Amazon Last Mile via AWS Open Data
+    import boto3
+    from botocore import UNSIGNED
+    from botocore.config import Config
+    
+    almrrc_dir = RAW_DATA_DIR / "amazon_last_mile"
+    if not (almrrc_dir.exists() and any(almrrc_dir.iterdir())):
+        logger.info("Downloading amazon_last_mile from AWS Open Data...")
+        almrrc_dir.mkdir(parents=True, exist_ok=True)
+        s3 = boto3.client("s3", config=Config(signature_version=UNSIGNED))
+        bucket = "amazon-last-mile-challenges"
+        prefix = "almrrc2021/almrrc2021-data-training/model_build_inputs/"
+        files_to_download = ["package_data.json", "route_data.json", "travel_times.json", "actual_sequences.json"]
+        
+        for f in files_to_download:
+            logger.info(f"Downloading {f}...")
+            s3.download_file(bucket, prefix + f, str(almrrc_dir / f))
+        logger.info("Successfully downloaded amazon_last_mile")
+    else:
+        logger.info("Dataset amazon_last_mile already exists. Skipping.")
             
     # Download Kaggle Competitions
     for name, comp in KAGGLE_COMPETITIONS.items():

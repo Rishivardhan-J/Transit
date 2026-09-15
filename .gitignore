@@ -15,3 +15,8 @@ transit/results/routes/*
 .ipynb_checkpoints/
 *.nbconvert.ipynb
 .env
+mlruns/
+transit/results/mlruns/
+transit/results/mlruns.db
+test_split.py
+transit/results/models/

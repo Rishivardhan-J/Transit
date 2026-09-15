@@ -31,7 +31,7 @@ def parse_solomon_instance(filepath: str, num_customers: int = 100) -> Tuple[Lis
             break
 
     depot_line = lines[cust_idx].split()
-    depot_x, depot_y = float(depot_line[1]), float(depot_line[2])
+    depot_x, depot_y = float(depot_line[1])/10.0, float(depot_line[2])/10.0
     depot_ready = float(depot_line[4])
     depot_due = float(depot_line[5])
     
@@ -57,7 +57,7 @@ def parse_solomon_instance(filepath: str, num_customers: int = 100) -> Tuple[Lis
     for i in range(1, num_customers + 1):
         line = lines[cust_idx + i].split()
         cust_id = line[0]
-        x, y = float(line[1]), float(line[2])
+        x, y = float(line[1])/10.0, float(line[2])/10.0
         demand = float(line[3])
         ready_time = float(line[4])
         due_date = float(line[5])

@@ -18,7 +18,9 @@ def train_xgb(data_path: str, pipeline_path: str, dataset_name: str):
     Trains XGBoost models for p10, p50, p90 quantiles.
     Logs to MLflow.
     """
-    mlflow.set_tracking_uri("sqlite:///mlruns.db")
+    # Setup MLflow
+    mlflow_uri = "file:" + os.path.abspath("transit/results/mlruns")
+    mlflow.set_tracking_uri(mlflow_uri)
     mlflow.set_experiment(f"Transit_Phase2_{dataset_name}")
     
     print(f"Loading data from {data_path}...")
