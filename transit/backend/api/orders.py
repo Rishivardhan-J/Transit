@@ -36,8 +36,8 @@ def create_order(order: Order, db: Session = Depends(get_db), current_user: User
     db.refresh(new_db_order)
     return from_db_order(new_db_order)
 
-@router.get("", response_model=List[Order])
-def list_orders(
+@router.get("/export", response_model=List[Order])
+def export_orders(
     skip: int = 0, limit: int = 100, status_filter: Optional[OrderStatus] = None, 
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
@@ -48,7 +48,7 @@ def list_orders(
     
     orders = [from_db_order(db_o) for db_o in db_orders]
     
-    # RBAC: Anonymize coordinates for non-researchers
+    # RBAC: Anonymize coordinates for non-researchers on export only
     if current_user.role != Role.researcher and orders:
         df = pd.DataFrame([o.model_dump() for o in orders])
         df_anon = anonymize_coordinates(df)
@@ -56,18 +56,25 @@ def list_orders(
         
     return orders
 
+@router.get("", response_model=List[Order])
+def list_orders(
+    skip: int = 0, limit: int = 100, status_filter: Optional[OrderStatus] = None, 
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    query = db.query(DBOrder)
+    if status_filter:
+        query = query.filter(DBOrder.status == status_filter)
+    db_orders = query.offset(skip).limit(limit).all()
+    
+    return [from_db_order(db_o) for db_o in db_orders]
+
 @router.get("/{order_id}", response_model=Order)
 def get_order(order_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     db_order = db.query(DBOrder).filter(DBOrder.order_id == order_id).first()
     if not db_order:
         raise HTTPException(status_code=404, detail="Order not found")
     
-    order = from_db_order(db_order)
-    if current_user.role != Role.researcher:
-        df = pd.DataFrame([order.model_dump()])
-        df_anon = anonymize_coordinates(df)
-        order = Order(**df_anon.to_dict(orient="records")[0])
-    return order
+    return from_db_order(db_order)
 
 @router.patch("/{order_id}", response_model=Order)
 def update_order_status(order_id: str, status_update: OrderStatus, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

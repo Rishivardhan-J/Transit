@@ -10,8 +10,26 @@ from backend.websocket import routes_ws
 # Initialize Sentry
 init_sentry()
 
+from backend.observability.metrics import REQUEST_COUNT, REQUEST_LATENCY
+import time
+
 app = FastAPI(title="Transit API", version="1.0.0")
 
+@app.middleware("http")
+async def prometheus_middleware(request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    duration = time.time() - start_time
+    
+    if request.url.path != "/metrics":
+        REQUEST_COUNT.labels(
+            method=request.method,
+            endpoint=request.url.path,
+            http_status=response.status_code
+        ).inc()
+        REQUEST_LATENCY.labels(endpoint=request.url.path).observe(duration)
+        
+    return response
 # CORS setup
 app.add_middleware(
     CORSMiddleware,

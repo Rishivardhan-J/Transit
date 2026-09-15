@@ -1,9 +1,12 @@
 import pytest
 
 def test_metrics_endpoint(client):
+    # Hit an endpoint to generate a metric
+    client.get("/health")
     response = client.get("/metrics")
     assert response.status_code == 200
-    assert "process_cpu_seconds_total" in response.text
+    assert "request_count" in response.text
+    assert "request_latency_seconds" in response.text
 
 def test_predictions_endpoint(client, override_user, mock_researcher_user):
     override_user(mock_researcher_user)

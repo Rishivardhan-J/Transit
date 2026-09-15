@@ -4,6 +4,10 @@ from backend.models_db.user import User
 from src.data_processing.schemas import Prediction, Order, Vehicle
 from src.models.predict import predict_delivery_time
 from pydantic import BaseModel
+import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -21,16 +25,23 @@ def get_eta(req: PredictRequest, current_user: User = Depends(get_current_user))
             pipeline_path="models/pipeline.pkl"
         )
         return prediction
-    except Exception:
-        # Fallback mock when ML models aren't on disk for testing
-        return Prediction(
-            order_id=req.order.order_id,
-            predicted_time_p10=10.0,
-            predicted_time_p50=15.0,
-            predicted_time_p90=25.0,
-            model_version="v1.0",
-            shap_top_features={"distance": 0.5, "priority": 0.2}
-        )
+    except Exception as e:
+        if os.getenv("TESTING") == "True":
+            # Fallback mock when ML models aren't on disk for testing
+            return Prediction(
+                order_id=req.order.order_id,
+                predicted_time_p10=10.0,
+                predicted_time_p50=15.0,
+                predicted_time_p90=25.0,
+                model_version="v1.0",
+                shap_top_features={"distance": 0.5, "priority": 0.2}
+            )
+        else:
+            logger.error(f"Failed to generate prediction: {str(e)}")
+            raise HTTPException(
+                status_code=503, 
+                detail="Prediction models unavailable"
+            )
 
 @router.get("/{order_id}/explain")
 def explain_eta(order_id: str, current_user: User = Depends(get_current_user)):

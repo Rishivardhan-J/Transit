@@ -7,6 +7,7 @@ import os
 # Set environment variables for tests BEFORE importing app
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"
 os.environ["REDIS_URL"] = "redis://localhost:6379/0"
+os.environ["TESTING"] = "True"
 
 from backend.main import app
 from backend.models_db.base import Base
