@@ -52,7 +52,7 @@ def export_orders(
     if current_user.role != Role.researcher and orders:
         df = pd.DataFrame([o.model_dump() for o in orders])
         df_anon = anonymize_coordinates(df)
-        orders = [Order(**record) for record in df_anon.to_dict(orient="records")]
+        orders = [Order(**{str(k): v for k, v in record.items()}) for record in df_anon.to_dict(orient="records")]
         
     return orders
 
