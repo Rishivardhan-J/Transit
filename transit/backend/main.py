@@ -4,7 +4,7 @@ from prometheus_client import make_asgi_app
 
 from backend.config import settings
 from backend.observability.sentry_init import init_sentry
-from backend.api import auth, orders, vehicles, routes, predictions, benchmarks, models_meta
+from backend.api import auth, orders, vehicles, routes, predictions, benchmarks, models_meta, eda, dashboard
 from backend.websocket import routes_ws
 
 # Initialize Sentry
@@ -52,6 +52,8 @@ app.include_router(predictions.router, prefix="/predictions", tags=["Predictions
 app.include_router(benchmarks.router, prefix="/benchmarks", tags=["Benchmarks"])
 app.include_router(models_meta.router, prefix="/models", tags=["Models Metadata"])
 app.include_router(routes_ws.router, prefix="/ws", tags=["WebSockets"])
+app.include_router(eda.router, prefix="/eda", tags=["EDA"])
+app.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
 
 @app.get("/health")
 def health_check():

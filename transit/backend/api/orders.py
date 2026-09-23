@@ -36,6 +36,30 @@ def create_order(order: Order, db: Session = Depends(get_db), current_user: User
     db.refresh(new_db_order)
     return from_db_order(new_db_order)
 
+@router.post("/batch", status_code=status.HTTP_201_CREATED)
+def create_orders_batch(orders_data: List[dict], db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    df = pd.DataFrame(orders_data)
+    report = processor.validate_batch(df, Order)
+    if not report.is_valid():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"errors": [err.model_dump() for err in report.errors], "total": report.total_records, "valid": report.valid_records}
+        )
+    
+    # Save valid orders
+    created_orders = []
+    for order_dict in orders_data:
+        order = Order(**order_dict)
+        db_order = db.query(DBOrder).filter(DBOrder.order_id == order.order_id).first()
+        if not db_order:
+            new_db_order = to_db_order(order)
+            db.add(new_db_order)
+            created_orders.append(new_db_order)
+    
+    db.commit()
+    return {"message": f"Successfully imported {len(created_orders)} orders", "created_count": len(created_orders)}
+
+
 @router.get("/export", response_model=List[Order])
 def export_orders(
     skip: int = 0, limit: int = 100, status_filter: Optional[OrderStatus] = None, 

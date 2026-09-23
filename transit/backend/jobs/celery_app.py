@@ -5,7 +5,7 @@ celery_app = Celery(
     "transit_jobs",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
-    include=["backend.jobs.optimization_tasks"]
+    include=["backend.jobs.optimization_tasks", "backend.jobs.maintenance_tasks"]
 )
 
 celery_app.conf.update(
@@ -17,4 +17,10 @@ celery_app.conf.update(
     # Time limits to prevent runaway tasks while allowing legitimate 30s solves
     task_soft_time_limit=120,
     task_time_limit=150,
+    beat_schedule={
+        'sweep-late-orders-every-minute': {
+            'task': 'backend.jobs.maintenance_tasks.sweep_late_orders',
+            'schedule': 60.0,
+        },
+    }
 )

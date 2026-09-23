@@ -5,6 +5,7 @@ from .base import Base
 class Role(str, enum.Enum):
     manager = "manager"
     researcher = "researcher"
+    admin = "admin"
 
 class User(Base):
     __tablename__ = "users"

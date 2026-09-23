@@ -166,9 +166,24 @@ def solve_with_ortools(problem: dict, weights: CostWeights, max_runtime_seconds:
         for vehicle_id in range(num_vehicles):
             index = routing.Start(vehicle_id)
             route_dist = 0
+            ordered_stops = []
+            predicted_arrival_times = []
             while not routing.IsEnd(index):
                 prev_index = index
                 index = solution.Value(routing.NextVar(index))
+                
+                # Extract the actual node index
+                node = manager.IndexToNode(index)
+                if node != depot:
+                    # Subtract 1 because problem["orders"] is 0-indexed while nodes are 1-indexed (with depot=0)
+                    order_id = problem["orders"][node - 1].order_id
+                    ordered_stops.append(order_id)
+                    
+                    from datetime import timedelta
+                    arrival_min = solution.Value(time_dimension.CumulVar(index)) / 10000.0
+                    arrival_time = base_time + timedelta(minutes=arrival_min)
+                    predicted_arrival_times.append(arrival_time)
+                
                 route_dist += routing.GetArcCostForVehicle(prev_index, index, vehicle_id)
             if route_dist > 0:
                 # Resolve the internal (* 10000) scale back to real-world metric units
@@ -176,8 +191,8 @@ def solve_with_ortools(problem: dict, weights: CostWeights, max_runtime_seconds:
                 routes.append(Route(
                     route_id=f"ortools_{vehicle_id}",
                     vehicle_id=problem["vehicles"][vehicle_id].vehicle_id,
-                    ordered_stops=[],
-                    predicted_arrival_times=[],
+                    ordered_stops=ordered_stops,
+                    predicted_arrival_times=predicted_arrival_times,
                     total_distance_km=actual_dist,
                     total_predicted_time_min=actual_dist,
                     total_cost=actual_dist * weights.w_distance,

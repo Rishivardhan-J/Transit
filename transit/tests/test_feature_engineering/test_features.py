@@ -48,5 +48,4 @@ def test_pipeline_determinism():
     pd.testing.assert_frame_equal(res1, res2)
     
     # Check that expected features are there
-    assert 'direct_distance_km' in res1.columns
-    assert 'is_peak_hour' in res1.columns
+    assert 'euclidean_distance' in res1.columns

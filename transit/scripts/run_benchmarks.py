@@ -11,7 +11,7 @@ from src.optimization.routing_metrics import compute_routing_metrics
 import time
 
 def run_benchmarks():
-    benchmark_dir = Path("transit/data/benchmark/solomon")
+    benchmark_dir = Path("data/benchmark/solomon")
     
     instances = ["C101.txt", "C201.txt", "R101.txt", "R201.txt", "RC101.txt", "RC201.txt"]
     weights = CostWeights.auto_normalize(1.0, 1.0, 0.0, 0.0)
@@ -93,8 +93,8 @@ def run_benchmarks():
             print(f"Failed to process {inst}: {e}")
             
     df = pd.DataFrame(results)
-    os.makedirs("transit/results/figures", exist_ok=True)
-    out_path = "transit/results/benchmark_summary.csv"
+    os.makedirs("results/figures", exist_ok=True)
+    out_path = "results/benchmark_summary.csv"
     df.to_csv(out_path, index=False)
     print(f"Benchmark summary saved to {out_path}")
     print(df.to_string())
@@ -109,7 +109,7 @@ def run_benchmarks():
         plt.ylabel("Gap to SINTEF Best Known (%)")
         plt.title("Routing Solver Performance vs Best Known Solutions")
         plt.legend()
-        plt.savefig("transit/results/figures/benchmark_gap.png")
+        plt.savefig("results/figures/benchmark_gap.png")
         plt.close()
 
 if __name__ == "__main__":

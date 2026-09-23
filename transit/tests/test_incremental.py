@@ -5,7 +5,7 @@ from src.optimization.hgs_solver import solve_with_hgs
 from src.cost_engine.config import CostWeights
 
 def test_incremental_re_solve_under_5s():
-    orders, vehicles = parse_solomon_instance("transit/data/benchmark/solomon/C101.txt", num_customers=100)
+    orders, vehicles = parse_solomon_instance("data/benchmark/solomon/C101.txt", num_customers=100)
     prob = build_cvrptw_problem(orders, vehicles)
     weights = CostWeights.auto_normalize(1.0, 1.0, 0.0, 0.0)
     
