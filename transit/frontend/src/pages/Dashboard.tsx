@@ -92,8 +92,8 @@ export function Dashboard() {
         <div className="lg:col-span-2 flex flex-col">
           <Heading level={2} size={20} className="mb-4">Active Route Map</Heading>
           <div className="h-[400px]">
-            {routes && orders ? (
-              <RouteMap routes={routes} orders={orders} className="h-full" />
+            {routes && orders && vehicles ? (
+              <RouteMap routes={routes} orders={orders} vehicles={vehicles} className="h-full" />
             ) : (
               <Card className="h-full items-center justify-center">
                 <Text variant="muted">Loading map data...</Text>

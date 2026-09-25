@@ -1,11 +1,12 @@
 import { useMemo } from 'react'
-import Map, { Source, Layer } from 'react-map-gl/maplibre'
+import Map, { Source, Layer, NavigationControl } from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Card } from './ui'
 
 interface RouteMapProps {
   routes: any[]
   orders: any[]
+  vehicles?: any[]
   onStopClick?: (orderId: string) => void
   className?: string
 }
@@ -18,7 +19,18 @@ const COLORS = [
   '#10B981', '#F43F5E', '#8B5CF6', '#14B8A6'
 ]
 
-export function RouteMap({ routes, orders, onStopClick, className }: RouteMapProps) {
+export function RouteMap({ routes, orders, vehicles = [], onStopClick, className }: RouteMapProps) {
+    const getStatusColor = (status: string) => {
+      switch (status) {
+        case 'late': return '#FCA5A5'; // red
+        case 'in_transit': 
+        case 'assigned': return '#FCD34D'; // amber
+        case 'delivered': return '#4ADE80'; // green
+        case 'pending': return '#EF4444'; // red for unassigned
+        default: return '#94A3B8';
+      }
+    };
+
   const geojsonData = useMemo(() => {
     const features: any[] = []
     
@@ -33,6 +45,24 @@ export function RouteMap({ routes, orders, onStopClick, className }: RouteMapPro
           }
           return null
         }).filter(Boolean)
+        
+        // Add vehicle depot as starting point for line
+        const vehicle = vehicles.find(v => v.vehicle_id === route.vehicle_id)
+        if (vehicle && vehicle.current_lng !== undefined) {
+           coordinates.unshift([vehicle.current_lng, vehicle.current_lat])
+           // Also add depot marker
+           features.push({
+             type: 'Feature',
+             geometry: {
+               type: 'Point',
+               coordinates: [vehicle.current_lng, vehicle.current_lat]
+             },
+             properties: {
+               is_depot: true,
+               color: '#FFFFFF'
+             }
+           })
+        }
         
         if (coordinates.length > 1) {
           features.push({
@@ -53,9 +83,8 @@ export function RouteMap({ routes, orders, onStopClick, className }: RouteMapPro
     // Add points for orders
     orders.forEach((order) => {
       if (order.delivery_lng !== undefined && order.delivery_lat !== undefined) {
-        // Find which route it belongs to
-        const routeIdx = routes.findIndex(r => r.ordered_stops.includes(order.order_id))
-        const color = routeIdx >= 0 ? COLORS[routeIdx % COLORS.length] : '#94A3B8'
+        const isUnassigned = order.status === 'pending';
+        const color = getStatusColor(order.status);
         
         features.push({
           type: 'Feature',
@@ -66,7 +95,8 @@ export function RouteMap({ routes, orders, onStopClick, className }: RouteMapPro
           properties: {
             order_id: order.order_id,
             status: order.status,
-            color
+            color,
+            is_unassigned: isUnassigned
           }
         })
       }
@@ -76,7 +106,7 @@ export function RouteMap({ routes, orders, onStopClick, className }: RouteMapPro
       type: 'FeatureCollection',
       features
     }
-  }, [routes, orders])
+  }, [routes, orders, vehicles])
 
   const onClick = (event: any) => {
     const feature = event.features?.[0]
@@ -99,26 +129,56 @@ export function RouteMap({ routes, orders, onStopClick, className }: RouteMapPro
         onClick={onClick}
         cursor="pointer"
       >
+        <NavigationControl position="top-right" />
         <Source id="routes-source" type="geojson" data={geojsonData}>
           <Layer 
             id="lines-layer"
             type="line"
-            filter={['==', '$type', 'LineString']}
+            filter={['==', ['geometry-type'], 'LineString']}
             paint={{
               'line-color': ['get', 'color'],
               'line-width': 3,
               'line-opacity': 0.8
             }}
           />
+          {/* Regular assigned stops */}
           <Layer 
             id="points-layer"
             type="circle"
-            filter={['==', '$type', 'Point']}
+            filter={['all', ['==', ['geometry-type'], 'Point'], ['!', ['has', 'is_depot']], ['!=', ['get', 'is_unassigned'], true]]}
             paint={{
               'circle-color': ['get', 'color'],
               'circle-radius': 6,
               'circle-stroke-width': 2,
               'circle-stroke-color': '#0F172A' // surface-dominant
+            }}
+          />
+          {/* Unassigned/Pending Stops (Distinct Hollow dots) */}
+          <Layer 
+            id="unassigned-layer"
+            type="circle"
+            filter={['all', ['==', ['geometry-type'], 'Point'], ['==', ['get', 'is_unassigned'], true]]}
+            paint={{
+              'circle-color': '#1E293B', // surface-secondary inside
+              'circle-radius': 6,
+              'circle-stroke-width': 3,
+              'circle-stroke-color': '#EF4444' // red stroke
+            }}
+          />
+          {/* Depot markers (Distinct square/symbol) */}
+          <Layer 
+            id="depots-layer"
+            type="symbol"
+            filter={['has', 'is_depot']}
+            layout={{
+              'icon-image': 'marker-15', // maplibre default icon, or text if none
+              'text-field': '★',
+              'text-size': 20
+            }}
+            paint={{
+              'text-color': '#FFFFFF',
+              'text-halo-color': '#0F172A',
+              'text-halo-width': 2
             }}
           />
         </Source>

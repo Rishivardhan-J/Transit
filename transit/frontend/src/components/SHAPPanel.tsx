@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Card, Text, Heading, Button, cn } from './ui'
 import { apiClient } from '../api/client'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
 interface SHAPPanelProps {
   orderId: string
@@ -47,7 +47,7 @@ export function SHAPPanel({ orderId, onClose, className }: SHAPPanelProps) {
       {loading ? (
         <Text variant="muted">Loading SHAP data...</Text>
       ) : error ? (
-        <Text variant="error" className="text-status-error-text">{error}</Text>
+        <Text variant="secondary" className="text-red-500">{error}</Text>
       ) : data ? (
         <div className="flex flex-col space-y-4">
           <div className="flex justify-between border-b-1 border-border-default pb-2">
@@ -68,7 +68,7 @@ export function SHAPPanel({ orderId, onClose, className }: SHAPPanelProps) {
                 />
                 <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                   {data.shap_values.map((entry: any, index: number) => (
-                    <cell key={`cell-${index}`} fill={entry.value > 0 ? '#F59E0B' : '#38BDF8'} />
+                    <Cell key={`cell-${index}`} fill={entry.value > 0 ? '#F59E0B' : '#38BDF8'} />
                   ))}
                 </Bar>
               </BarChart>

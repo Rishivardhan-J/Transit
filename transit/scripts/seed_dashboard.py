@@ -46,7 +46,7 @@ def seed_db():
         orders = []
         for i in range(50):
             status = random.choice([OrderStatus.PENDING, OrderStatus.ASSIGNED, OrderStatus.IN_TRANSIT, OrderStatus.DELIVERED, OrderStatus.LATE])
-            start_time = now + timedelta(minutes=random.randint(-30, 90))
+            start_time = now + timedelta(days=random.uniform(5, 7))
             end_time = start_time + timedelta(hours=random.uniform(2, 6))
             
             o = DBOrder(

@@ -20,11 +20,6 @@ Built the Phase 5 React dashboard to visualize the backend operations and metric
 3. **RBAC Hard Verification**: Verified that endpoints like `/eda/summary` and `/models/performance` physically throw a `403 Forbidden` JSON response in the browser network tab when accessed by a non-privileged `manager` token. This guarantees data doesn't leak to the frontend.
 4. **Researcher Mode Toggle**: Visually implemented in the top bar. Only admins/researchers can toggle it. Toggling it displays the `EDA` and `Models` nav links.
 
-### Seed Script Note (Late Deliveries KPI)
-The `Late Deliveries` KPI in the demo dashboard reflects explicit seed randomness, not an actual routing failure based on the time windows. At seed time (`scripts/seed_dashboard.py`), the `LATE` status is assigned to orders purely by random chance.
-In the current seeded database, the status distribution for the 50 orders is:
-- `LATE`: 15
-- `ASSIGNED`: 10
-- `PENDING`: 9
-- `DELIVERED`: 9
-- `IN_TRANSIT`: 7
+### Late Deliveries KPI Instability Fix
+- **The Issue**: The `Late Deliveries` metric fluctuated wildly across testing sessions because the initial seed time windows were only 2 to 6 hours in the future. The Celery beat task (`sweep_late_orders`) running every minute would continually sweep these orders into the `LATE` status as testing progressed, inflating the dashboard number unpredictably.
+- **The Fix**: The `seed_dashboard.py` script was updated to push the simulated `time_window_start` and `time_window_end` out 5 to 7 days into the future. This safely freezes the beat sweep from automatically modifying the status of the seed data over time, keeping the KPI entirely deterministic and stable for testing and demonstration purposes.

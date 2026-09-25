@@ -26,6 +26,15 @@ export function MapView() {
     refetchInterval: 10000
   })
 
+  const { data: vehicles } = useQuery({
+    queryKey: ['vehicles'],
+    queryFn: async () => {
+      const res = await apiClient.get('/vehicles')
+      return res.data
+    },
+    refetchInterval: 10000
+  })
+
   return (
     <div className="h-[calc(100vh-120px)] flex flex-col relative">
       <div className="mb-4">
@@ -41,6 +50,7 @@ export function MapView() {
         <RouteMap 
           routes={routes || []} 
           orders={orders || []} 
+          vehicles={vehicles || []}
           onStopClick={setSelectedOrderId}
           className="flex-1"
         />
