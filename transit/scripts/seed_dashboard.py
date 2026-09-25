@@ -36,8 +36,8 @@ def seed_db():
                 fuel_efficiency=12.5,
                 available_from=now - timedelta(hours=1),
                 available_until=now + timedelta(hours=8),
-                current_lat=37.7749 + random.uniform(-0.05, 0.05),
-                current_lng=-122.4194 + random.uniform(-0.05, 0.05)
+                current_lat=37.7749,
+                current_lng=-122.4194
             )
             vehicles.append(v)
             db.add(v)

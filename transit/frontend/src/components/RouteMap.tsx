@@ -22,11 +22,11 @@ const COLORS = [
 export function RouteMap({ routes, orders, vehicles = [], onStopClick, className }: RouteMapProps) {
     const getStatusColor = (status: string) => {
       switch (status) {
-        case 'late': return '#FCA5A5'; // red
+        case 'late': return '#EF4444'; // Red
         case 'in_transit': 
-        case 'assigned': return '#FCD34D'; // amber
-        case 'delivered': return '#4ADE80'; // green
-        case 'pending': return '#EF4444'; // red for unassigned
+        case 'assigned': return '#FCD34D'; // Amber
+        case 'delivered': return '#4ADE80'; // Green
+        case 'pending': return '#94A3B8'; // Slate/Grey
         default: return '#94A3B8';
       }
     };
@@ -50,18 +50,22 @@ export function RouteMap({ routes, orders, vehicles = [], onStopClick, className
         const vehicle = vehicles.find(v => v.vehicle_id === route.vehicle_id)
         if (vehicle && vehicle.current_lng !== undefined) {
            coordinates.unshift([vehicle.current_lng, vehicle.current_lat])
-           // Also add depot marker
-           features.push({
-             type: 'Feature',
-             geometry: {
-               type: 'Point',
-               coordinates: [vehicle.current_lng, vehicle.current_lat]
-             },
-             properties: {
-               is_depot: true,
-               color: '#FFFFFF'
-             }
-           })
+           // Also add depot marker, but ensure we only add it once per coordinate
+           const coordStr = `${vehicle.current_lng},${vehicle.current_lat}`
+           if (!features.some(f => f.properties.is_depot && f.properties.coord_id === coordStr)) {
+             features.push({
+               type: 'Feature',
+               geometry: {
+                 type: 'Point',
+                 coordinates: [vehicle.current_lng, vehicle.current_lat]
+               },
+               properties: {
+                 is_depot: true,
+                 coord_id: coordStr,
+                 color: '#FFFFFF'
+               }
+             })
+           }
         }
         
         if (coordinates.length > 1) {
@@ -141,28 +145,16 @@ export function RouteMap({ routes, orders, vehicles = [], onStopClick, className
               'line-opacity': 0.8
             }}
           />
-          {/* Regular assigned stops */}
+          {/* All stops (assigned and pending) share exactly the same shape */}
           <Layer 
             id="points-layer"
             type="circle"
-            filter={['all', ['==', ['geometry-type'], 'Point'], ['!', ['has', 'is_depot']], ['!=', ['get', 'is_unassigned'], true]]}
+            filter={['all', ['==', ['geometry-type'], 'Point'], ['!', ['has', 'is_depot']]]}
             paint={{
               'circle-color': ['get', 'color'],
               'circle-radius': 6,
               'circle-stroke-width': 2,
               'circle-stroke-color': '#0F172A' // surface-dominant
-            }}
-          />
-          {/* Unassigned/Pending Stops (Distinct Hollow dots) */}
-          <Layer 
-            id="unassigned-layer"
-            type="circle"
-            filter={['all', ['==', ['geometry-type'], 'Point'], ['==', ['get', 'is_unassigned'], true]]}
-            paint={{
-              'circle-color': '#1E293B', // surface-secondary inside
-              'circle-radius': 6,
-              'circle-stroke-width': 3,
-              'circle-stroke-color': '#EF4444' // red stroke
             }}
           />
           {/* Depot markers (Distinct square/symbol) */}
@@ -183,6 +175,18 @@ export function RouteMap({ routes, orders, vehicles = [], onStopClick, className
           />
         </Source>
       </Map>
+      
+      {/* Map Legend */}
+      <div className="absolute bottom-4 left-4 bg-surface-secondary/90 border border-border-default rounded-md p-3 shadow-lg pointer-events-none">
+        <h4 className="text-12 font-semibold mb-2 text-text-primary uppercase tracking-wide">Map Legend</h4>
+        <div className="flex flex-col space-y-2 text-12 text-text-secondary">
+          <div className="flex items-center"><span className="text-white text-14 mr-2 leading-none">★</span> Central Depot</div>
+          <div className="flex items-center"><div className="w-3 h-3 rounded-full bg-[#4ADE80] border-2 border-surface-dominant mr-2"></div> Delivered (On-Time)</div>
+          <div className="flex items-center"><div className="w-3 h-3 rounded-full bg-[#FCD34D] border-2 border-surface-dominant mr-2"></div> Assigned / In Transit (At-Risk)</div>
+          <div className="flex items-center"><div className="w-3 h-3 rounded-full bg-[#EF4444] border-2 border-surface-dominant mr-2"></div> Late</div>
+          <div className="flex items-center"><div className="w-3 h-3 rounded-full bg-[#94A3B8] border-2 border-surface-dominant mr-2"></div> Unassigned / Pending</div>
+        </div>
+      </div>
     </Card>
   )
 }
