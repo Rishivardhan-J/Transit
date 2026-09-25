@@ -177,7 +177,7 @@ export function RouteMap({ routes, orders, vehicles = [], onStopClick, className
       </Map>
       
       {/* Map Legend */}
-      <div className="absolute bottom-4 left-4 bg-surface-secondary/90 border border-border-default rounded-md p-3 shadow-lg pointer-events-none">
+      <div className="absolute bottom-4 left-4 bg-surface-secondary/90 border-1 border-border-default rounded-md p-3 shadow-lg pointer-events-none">
         <h4 className="text-12 font-semibold mb-2 text-text-primary uppercase tracking-wide">Map Legend</h4>
         <div className="flex flex-col space-y-2 text-12 text-text-secondary">
           <div className="flex items-center"><span className="text-white text-14 mr-2 leading-none">★</span> Central Depot</div>
