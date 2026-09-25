@@ -10,30 +10,7 @@ interface RouteMapProps {
   className?: string
 }
 
-const CARTO_DARK_MATTER = {
-  version: 8,
-  sources: {
-    'raster-tiles': {
-      type: 'raster',
-      tiles: [
-        'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-        'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-        'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
-      ],
-      tileSize: 256,
-      attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
-    }
-  },
-  layers: [
-    {
-      id: 'simple-tiles',
-      type: 'raster',
-      source: 'raster-tiles',
-      minzoom: 0,
-      maxzoom: 22
-    }
-  ]
-} as any
+const MAP_STYLE = 'https://tiles.openfreemap.org/styles/dark'
 
 // Categorical colors from tokens
 const COLORS = [
@@ -111,12 +88,13 @@ export function RouteMap({ routes, orders, onStopClick, className }: RouteMapPro
   return (
     <Card className={`relative overflow-hidden ${className}`}>
       <Map
+        style={{ width: '100%', height: '100%' }}
         initialViewState={{
           longitude: -122.4194, // SF coordinates to match seed data
           latitude: 37.7749,
           zoom: 11
         }}
-        mapStyle={CARTO_DARK_MATTER}
+        mapStyle={MAP_STYLE}
         interactiveLayerIds={['points-layer']}
         onClick={onClick}
         cursor="pointer"
