@@ -1,4 +1,4 @@
-import React from 'react'
+
 import { cn, Text } from './ui'
 
 type StatusType = 'success' | 'warning' | 'error' | 'neutral'

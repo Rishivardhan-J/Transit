@@ -1,4 +1,4 @@
-import React from 'react'
+
 import { Card, Text, cn } from './ui'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 

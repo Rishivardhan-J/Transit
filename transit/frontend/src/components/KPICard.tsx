@@ -1,4 +1,4 @@
-import React from 'react'
+
 import { Card, Text, Heading, cn } from './ui'
 
 interface KPICardProps {
