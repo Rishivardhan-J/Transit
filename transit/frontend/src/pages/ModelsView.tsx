@@ -78,9 +78,11 @@ export function ModelsView() {
             <Heading level={2} size={20}>Performance Metrics</Heading>
             {perfLoading ? (
               <Card className="p-4"><Text variant="muted">Loading metrics...</Text></Card>
-            ) : performance ? (
-              <DataTable data={performance} columns={columns} />
-            ) : null}
+            ) : performance && performance.runs && performance.runs.length > 0 ? (
+              <DataTable data={performance.runs} columns={columns} />
+            ) : (
+              <Card className="p-4"><Text variant="muted">No performance metrics recorded.</Text></Card>
+            )}
           </div>
         </div>
       </div>

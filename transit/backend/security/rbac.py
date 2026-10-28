@@ -5,7 +5,7 @@ from typing import Callable
 
 def require_role(required_role: Role) -> Callable:
     def role_checker(current_user: User = Depends(get_current_user)):
-        if current_user.role != required_role:
+        if current_user.role != required_role and current_user.role != Role.admin:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Operation not permitted. Requires {required_role.value} role."

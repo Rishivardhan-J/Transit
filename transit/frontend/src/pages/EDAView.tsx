@@ -9,7 +9,7 @@ export function EDAView() {
   const [jsonText, setJsonText] = useState('')
   const [importStatus, setImportStatus] = useState<string | null>(null)
 
-  const { data: summary } = useQuery({
+  const { data: summary, isLoading, error } = useQuery({
     queryKey: ['eda_summary'],
     queryFn: async () => {
       const res = await apiClient.get('/eda/summary')
@@ -70,6 +70,8 @@ export function EDAView() {
             yKey="importance" 
             color="#F59E0B"
             domain={[0, 'auto']} 
+            isLoading={isLoading}
+            error={error ? String((error as any)?.response?.data?.detail || error) : null}
           />
         </div>
 
@@ -79,6 +81,8 @@ export function EDAView() {
             data={summary?.distributions?.demand_weight || []} 
             xKey="bin" 
             yKey="count" 
+            isLoading={isLoading}
+            error={error ? String((error as any)?.response?.data?.detail || error) : null}
           />
           <ChartPanel 
             title="Priority Distribution" 
@@ -86,6 +90,8 @@ export function EDAView() {
             xKey="category" 
             yKey="count" 
             color="#10B981"
+            isLoading={isLoading}
+            error={error ? String((error as any)?.response?.data?.detail || error) : null}
           />
         </div>
       </div>

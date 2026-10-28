@@ -90,7 +90,8 @@ class Prediction(BaseModel):
     predicted_time_p50: float = Field(..., ge=0.0, description="50th percentile (median) predicted delivery time")
     predicted_time_p90: float = Field(..., ge=0.0, description="90th percentile predicted delivery time")
     model_version: str = Field(..., description="Version identifier of the ML model used")
-    shap_top_features: Dict[str, Any] = Field(default_factory=dict, description="JSON representing top SHAP features")
+    shap_top_features: List[Dict[str, Any]] = Field(default_factory=list, description="JSON representing top SHAP features")
+
 
     @model_validator(mode='after')
     def check_percentiles_order(self) -> 'Prediction':

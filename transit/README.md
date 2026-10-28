@@ -30,3 +30,12 @@ Start the stubbed database services (Postgres, Redis) for future phases:
 ```bash
 docker-compose up -d
 ```
+
+### Database Seeding & Reset
+
+To reset and reseed the demo database with stable order windows (365+ days) and demo user accounts in a single command:
+```bash
+./re_seed.sh
+```
+This executes database migrations and seeds users (`manager@transit.com`, `researcher@transit.com`, `admin@transit.com` with password `admin`) along with 50 deterministic orders, vehicles, routes, and optimizer runs.
+

@@ -23,26 +23,15 @@ def get_eta(req: PredictRequest, current_user: User = Depends(get_current_user))
             order=req.order,
             vehicle=req.vehicle,
             as_of_timestamp=req.order.time_window_start.isoformat(),
-            pipeline_path="models/pipeline.pkl"
+            pipeline_path="results/models/feature_pipeline_latest.pkl"
         )
         return prediction
     except Exception as e:
-        if os.getenv("TESTING") == "True":
-            # Fallback mock when ML models aren't on disk for testing
-            return Prediction(
-                order_id=req.order.order_id,
-                predicted_time_p10=10.0,
-                predicted_time_p50=15.0,
-                predicted_time_p90=25.0,
-                model_version="v1.0",
-                shap_top_features={"distance": 0.5, "priority": 0.2}
-            )
-        else:
-            logger.error(f"Failed to generate prediction: {str(e)}")
-            raise HTTPException(
-                status_code=503, 
-                detail="Prediction models unavailable"
-            )
+        logger.error(f"Failed to generate prediction: {str(e)}")
+        raise HTTPException(
+            status_code=503, 
+            detail="Prediction models unavailable"
+        )
 
 @router.get("/{order_id}/explain")
 def explain_eta(order_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -79,7 +68,7 @@ def explain_eta(order_id: str, db: Session = Depends(get_db), current_user: User
             order=order,
             vehicle=vehicle,
             as_of_timestamp=order.time_window_start.isoformat(),
-            pipeline_path="models/pipeline.pkl"
+            pipeline_path="results/models/feature_pipeline_latest.pkl"
         )
         # Format the response as requested: {"predicted_eta_mins": int, "shap_values": [{"feature": str, "value": float}]}
         # Prediction returns shap_top_features as: [{"feature": str, "value": any, "impact_minutes": float}]
@@ -93,16 +82,9 @@ def explain_eta(order_id: str, db: Session = Depends(get_db), current_user: User
             
         return {
             "predicted_eta_mins": int(prediction.predicted_time_p50),
+            "model_version": prediction.model_version,
             "shap_values": formatted_shap
         }
     except Exception as e:
-        if os.getenv("TESTING") == "True":
-            return {
-                "predicted_eta_mins": 15,
-                "shap_values": [
-                    {"feature": "distance", "value": 0.5},
-                    {"feature": "priority", "value": 0.2}
-                ]
-            }
         logger.error(f"Failed to explain prediction: {str(e)}")
         raise HTTPException(status_code=503, detail="Prediction models unavailable")

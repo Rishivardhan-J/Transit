@@ -15,6 +15,7 @@ from backend.models_db.prediction import DBPrediction
 from src.data_processing.schemas import OrderStatus, Priority, VehicleType
 
 def seed_db():
+    random.seed(42)
     db = SessionLocal()
     try:
         # Clear existing data
@@ -46,7 +47,7 @@ def seed_db():
         orders = []
         for i in range(50):
             status = random.choice([OrderStatus.PENDING, OrderStatus.ASSIGNED, OrderStatus.IN_TRANSIT, OrderStatus.DELIVERED, OrderStatus.LATE])
-            start_time = now + timedelta(days=random.uniform(5, 7))
+            start_time = now + timedelta(days=random.uniform(365, 370))
             end_time = start_time + timedelta(hours=random.uniform(2, 6))
             
             o = DBOrder(

@@ -24,7 +24,7 @@ def save_model(model, name: str, metadata: dict, output_dir: str = "transit/resu
         
     return model_dir
 
-def load_model(name: str, version: str = "latest", input_dir: str = "transit/results/models") -> tuple:
+def load_model(name: str, version: str = "latest", input_dir: str = "results/models") -> tuple:
     """
     Loads a model and its metadata.
     If version is 'latest', loads the most recently saved version based on timestamp.

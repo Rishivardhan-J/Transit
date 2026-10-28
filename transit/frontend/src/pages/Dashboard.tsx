@@ -82,7 +82,7 @@ export function Dashboard() {
         <KPICard 
           label="Cost vs Baseline" 
           value={kpisLoading ? '...' : `${kpis?.cost_vs_baseline_pct}%`}
-          trend="vs OR-Tools"
+          trend="HGS vs OR-Tools (Benchmark)"
           trendDirection="up"
           className="border-accent/50 bg-accent/5"
         />
