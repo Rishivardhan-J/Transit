@@ -1,17 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import Map, { Layer, NavigationControl, Source, type MapRef } from 'react-map-gl/mapbox'
+import MapboxMap, { Layer as MbLayer, NavigationControl as MbNav, Source as MbSource, type MapRef } from 'react-map-gl/mapbox'
+import MaplibreMap, { Layer as MlLayer, NavigationControl as MlNav, Source as MlSource } from 'react-map-gl/maplibre'
 import type { MapMouseEvent } from 'mapbox-gl'
 import type { FeatureCollection } from 'geojson'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { MapPinOff } from 'lucide-react'
+import 'maplibre-gl/dist/maplibre-gl.css'
 import type { Plan } from '../api/types'
 import { colors, statusStyle, vehicleColor, vehicleDashed, type PlanStatus } from '../design-system/tokens'
 import { blend, easeInOut, resample, type LngLat } from '../lib/geo'
-import { cn, EmptyState } from '../components/ui'
+import { cn } from '../components/ui'
 import { retintToCommandNavy } from './navyStyle'
 
 export const MAPBOX_TOKEN: string | undefined = import.meta.env.VITE_MAPBOX_TOKEN
 export const MAP_STYLE = 'mapbox://styles/mapbox/dark-v11'
+// Keyless fallback so the map still renders when no Mapbox token is configured.
+export const FALLBACK_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
+const FALLBACK_FONT = ['Montserrat Regular']
 const MORPH_POINTS = 64
 const MORPH_MS = 600
 
@@ -34,6 +38,12 @@ interface Props {
 }
 
 type Fc = FeatureCollection
+
+const BaseMap = (MAPBOX_TOKEN ? MapboxMap : MaplibreMap) as typeof MapboxMap
+const Layer = (MAPBOX_TOKEN ? MbLayer : MlLayer) as typeof MbLayer
+const Source = (MAPBOX_TOKEN ? MbSource : MlSource) as typeof MbSource
+const NavigationControl = (MAPBOX_TOKEN ? MbNav : MlNav) as typeof MbNav
+const textFont = MAPBOX_TOKEN ? {} : { 'text-font': FALLBACK_FONT }
 
 const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
@@ -130,15 +140,6 @@ export function MapCanvas({ plan, className, selectedOrderId, hiddenVehicles, la
   useEffect(() => { if (plan && !fitted.current && mapRef.current?.getMap()?.isStyleLoaded()) { fit(); fitted.current = true } }, [plan]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (focus) mapRef.current?.flyTo({ center: [focus.lng, focus.lat], zoom: 14, duration: prefersReducedMotion() ? 0 : 500 }) }, [focus])
 
-  if (!MAPBOX_TOKEN) {
-    return (
-      <div className={cn('bg-surface-secondary border-1 border-border-default rounded-md', className)}>
-        <EmptyState icon={MapPinOff} title="Map token missing"
-          description={<>Set <code className="text-accent">VITE_MAPBOX_TOKEN</code> in <code className="text-accent">frontend/.env</code> (a public <code>pk.</code> token from your Mapbox account) and restart the dev server.</>} />
-      </div>
-    )
-  }
-
   const onClick = (e: MapMouseEvent) => {
     const f = e.features?.[0] as { properties?: Record<string, unknown> } | undefined
     const id = f?.properties?.order_id as string | undefined
@@ -147,15 +148,15 @@ export function MapCanvas({ plan, className, selectedOrderId, hiddenVehicles, la
 
   return (
     <div className={cn('relative overflow-hidden rounded-md border-1 border-border-default', className)}>
-      <Map
+      <BaseMap
         ref={mapRef}
-        mapboxAccessToken={MAPBOX_TOKEN}
-        mapStyle={MAP_STYLE}
+        {...(MAPBOX_TOKEN ? { mapboxAccessToken: MAPBOX_TOKEN } : {})}
+        mapStyle={MAPBOX_TOKEN ? MAP_STYLE : FALLBACK_STYLE}
         initialViewState={{ longitude: -118.2468, latitude: 34.0407, zoom: 10.5 }}
         style={{ width: '100%', height: '100%' }}
         interactiveLayerIds={['stops-circle', 'unassigned-circle']}
         onClick={onClick}
-        onLoad={(e) => { retintToCommandNavy(e.target); if (plan && !fitted.current) { fit(); fitted.current = true } }}
+        onLoad={(e) => { if (MAPBOX_TOKEN) retintToCommandNavy(e.target as never); if (plan && !fitted.current) { fit(); fitted.current = true } }}
         cursor="default"
       >
         <NavigationControl position="top-right" showCompass={false} />
@@ -172,7 +173,7 @@ export function MapCanvas({ plan, className, selectedOrderId, hiddenVehicles, la
             <Layer id="stops-circle" type="circle" paint={{
               'circle-radius': ['case', ['get', 'selected'], 12, 9], 'circle-color': ['get', 'color'],
               'circle-stroke-width': 3, 'circle-stroke-color': ['get', 'ring'] }} />
-            <Layer id="stops-glyph" type="symbol" layout={{ 'text-field': ['get', 'glyph'], 'text-size': 12, 'text-allow-overlap': true, 'text-ignore-placement': true }}
+            <Layer id="stops-glyph" type="symbol" layout={{ 'text-field': ['get', 'glyph'], 'text-size': 12, 'text-allow-overlap': true, 'text-ignore-placement': true, ...textFont }}
               paint={{ 'text-color': colors.surface.dominant }} />
           </Source>
         )}
@@ -181,7 +182,7 @@ export function MapCanvas({ plan, className, selectedOrderId, hiddenVehicles, la
             <Layer id="unassigned-circle" type="circle" paint={{
               'circle-radius': ['case', ['get', 'selected'], 12, 9], 'circle-color': colors.surface.secondary,
               'circle-stroke-width': 3, 'circle-stroke-color': ['get', 'ring'] }} />
-            <Layer id="unassigned-glyph" type="symbol" layout={{ 'text-field': ['get', 'glyph'], 'text-size': 12, 'text-allow-overlap': true, 'text-ignore-placement': true }}
+            <Layer id="unassigned-glyph" type="symbol" layout={{ 'text-field': ['get', 'glyph'], 'text-size': 12, 'text-allow-overlap': true, 'text-ignore-placement': true, ...textFont }}
               paint={{ 'text-color': colors.text.secondary }} />
           </Source>
         )}
@@ -190,9 +191,9 @@ export function MapCanvas({ plan, className, selectedOrderId, hiddenVehicles, la
         </Source>
         <Source id="depot" type="geojson" data={data.depot}>
           <Layer id="depot-circle" type="circle" paint={{ 'circle-radius': 12, 'circle-color': colors.text.primary, 'circle-stroke-width': 3, 'circle-stroke-color': colors.accent }} />
-          <Layer id="depot-glyph" type="symbol" layout={{ 'text-field': 'D', 'text-size': 12, 'text-allow-overlap': true }} paint={{ 'text-color': colors.surface.dominant }} />
+          <Layer id="depot-glyph" type="symbol" layout={{ 'text-field': 'D', 'text-size': 12, 'text-allow-overlap': true, ...textFont }} paint={{ 'text-color': colors.surface.dominant }} />
         </Source>
-      </Map>
+      </BaseMap>
       {children}
     </div>
   )
