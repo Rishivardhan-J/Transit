@@ -1,116 +1,86 @@
+"""Solomon 100-customer benchmark: HGS vs OR-Tools vs Nearest Neighbour.
+
+Objective is the standard hierarchical one (vehicles first, then distance), approximated with a
+large per-vehicle fixed cost. Every solution is re-checked by the solver-independent evaluator;
+`*_Viol` counts constraint violations and must be 0.
+"""
 import os
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-from pathlib import Path
-from src.optimization.problem_builder import parse_solomon_instance, build_cvrptw_problem
-from src.optimization.hgs_solver import solve_with_hgs
-from src.optimization.baselines import solve_with_ortools, solve_with_nn
-from src.cost_engine.config import CostWeights
-from src.optimization.routing_metrics import compute_routing_metrics
 import time
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import pandas as pd
+
+from src.cost_engine.config import CostWeights
+from src.optimization.baselines import solve_nn, solve_ortools
+from src.optimization.hgs_solver import solve_hgs
+from src.optimization.problem_builder import SOLOMON_COORD_SCALE, build_cvrptw_problem, parse_solomon_instance
+from src.optimization.routing_metrics import evaluate_solution
+from src.paths import BENCHMARK_DIR, FIGURES_DIR, RESULTS_DIR
+
+BEST_KNOWN = {  # SINTEF: (distance, vehicles)
+    "C101": (828.94, 10), "C201": (591.56, 3), "R101": (1650.80, 19),
+    "R201": (1252.37, 4), "RC101": (1696.95, 14), "RC201": (1406.94, 4),
+}
+FIXED_COST = 1000.0
+SEEDS = (1, 2, 3)
+BUDGET_S = float(os.environ.get("BENCH_BUDGET_S", 20))
+
+
 def run_benchmarks():
-    benchmark_dir = Path("data/benchmark/solomon")
-    
-    instances = ["C101.txt", "C201.txt", "R101.txt", "R201.txt", "RC101.txt", "RC201.txt"]
-    weights = CostWeights.auto_normalize(1.0, 1.0, 0.0, 0.0)
-    
-    sintef_best_dist = {
-        "C101.txt": 828.94,
-        "C201.txt": 591.56,
-        "R101.txt": 1650.80,
-        "R201.txt": 1252.37,
-        "RC101.txt": 1696.95,
-        "RC201.txt": 1406.94
-    }
-    
-    sintef_best_veh = {
-        "C101.txt": 10,
-        "C201.txt": 3,
-        "R101.txt": 19,
-        "R201.txt": 4,
-        "RC101.txt": 14,
-        "RC201.txt": 4
-    }
-    
-    results = []
-    
-    print("Starting benchmarks...")
-    for inst in instances:
-        path = benchmark_dir / inst
+    weights = CostWeights(w_distance=1.0, w_time=0.0, w_fuel=0.0, w_delay=0.0)
+    rows = []
+    for inst, (best_d, best_v) in BEST_KNOWN.items():
+        path = BENCHMARK_DIR / "solomon" / f"{inst}.txt"
         if not path.exists():
-            print(f"Skipping {inst}, not found.")
+            print(f"Skipping {inst}: {path} not found")
             continue
-            
         print(f"Processing {inst}...")
-        try:
-            orders, vehicles = parse_solomon_instance(str(path), num_customers=100)
-            prob = build_cvrptw_problem(orders, vehicles, use_euclidean=True)
-            
-            # HGS
-            t0 = time.time()
-            routes_hgs = solve_with_hgs(prob, weights, max_runtime_seconds=30.0, max_iterations_no_improvement=5000)
-            t_hgs = time.time() - t0
-            metrics_hgs = compute_routing_metrics(routes_hgs)
-            
-            # OR-Tools
-            t0 = time.time()
-            routes_ortools = solve_with_ortools(prob, weights, max_runtime_seconds=30.0)
-            t_ort = time.time() - t0
-            metrics_ort = compute_routing_metrics(routes_ortools)
-            
-            # NN
-            t0 = time.time()
-            routes_nn = solve_with_nn(prob, weights)
-            t_nn = time.time() - t0
-            metrics_nn = compute_routing_metrics(routes_nn)
-            
-            metrics_hgs["total_distance_km"] *= 10
-            metrics_ort["total_distance_km"] *= 10
-            metrics_nn["total_distance_km"] *= 10
-            
-            best_d = sintef_best_dist[inst]
-            gap_hgs = ((metrics_hgs["total_distance_km"] - best_d) / best_d) * 100.0 if metrics_hgs["total_distance_km"] > 0 else 0
-            gap_ort = ((metrics_ort["total_distance_km"] - best_d) / best_d) * 100.0 if metrics_ort["total_distance_km"] > 0 else 0
-            
-            results.append({
-                "Instance": inst,
-                "HGS_Dist": metrics_hgs["total_distance_km"],
-                "HGS_Veh": len(routes_hgs),
-                "HGS_Gap": gap_hgs,
-                "HGS_Time": t_hgs,
-                "ORT_Dist": metrics_ort["total_distance_km"],
-                "ORT_Veh": len(routes_ortools),
-                "ORT_Gap": gap_ort,
-                "ORT_Time": t_ort,
-                "NN_Dist": metrics_nn["total_distance_km"],
-                "NN_Veh": len(routes_nn),
-                "Best_Known_Dist": best_d,
-                "Best_Known_Veh": sintef_best_veh[inst]
-            })
-        except Exception as e:
-            print(f"Failed to process {inst}: {e}")
-            
-    df = pd.DataFrame(results)
-    os.makedirs("results/figures", exist_ok=True)
-    out_path = "results/benchmark_summary.csv"
-    df.to_csv(out_path, index=False)
-    print(f"Benchmark summary saved to {out_path}")
-    print(df.to_string())
-    
+        orders, vehicles = parse_solomon_instance(str(path), num_customers=100)
+        prob = build_cvrptw_problem(orders, vehicles, use_euclidean=True, coord_scale=SOLOMON_COORD_SCALE)
+
+        hgs_runs = []
+        for seed in SEEDS:
+            r = solve_hgs(prob, weights, BUDGET_S, 5000, seed=seed, vehicle_fixed_cost=FIXED_COST)
+            hgs_runs.append((r, evaluate_solution(r.routes, prob, weights, r.unassigned)))
+        r_h, m_h = min(hgs_runs, key=lambda x: (-x[1]["orders_assigned"], x[1]["vehicles_used"], x[1]["total_distance"]))
+        r_o = solve_ortools(prob, weights, BUDGET_S, vehicle_fixed_cost=FIXED_COST)
+        m_o = evaluate_solution(r_o.routes, prob, weights, r_o.unassigned)
+        r_n = solve_nn(prob, weights)
+        m_n = evaluate_solution(r_n.routes, prob, weights, r_n.unassigned)
+
+        gap = lambda d: (d - best_d) / best_d * 100.0
+        rows.append({
+            "Instance": inst,
+            "HGS_Dist": m_h["total_distance"], "HGS_Veh": m_h["vehicles_used"], "HGS_Gap": gap(m_h["total_distance"]),
+            "HGS_Time": r_h.runtime_s, "HGS_Dist_Mean": sum(m["total_distance"] for _, m in hgs_runs) / len(hgs_runs),
+            "HGS_Unassigned": m_h["orders_unassigned"], "HGS_Viol": len(m_h["violations"]),
+            "ORT_Dist": m_o["total_distance"], "ORT_Veh": m_o["vehicles_used"], "ORT_Gap": gap(m_o["total_distance"]),
+            "ORT_Time": r_o.runtime_s, "ORT_Unassigned": m_o["orders_unassigned"], "ORT_Viol": len(m_o["violations"]),
+            "NN_Dist": m_n["total_distance"], "NN_Veh": m_n["vehicles_used"], "NN_Gap": gap(m_n["total_distance"]),
+            "NN_Unassigned": m_n["orders_unassigned"], "NN_Viol": len(m_n["violations"]),
+            "Best_Known_Dist": best_d, "Best_Known_Veh": best_v,
+        })
+        print({k: (round(v, 2) if isinstance(v, float) else v) for k, v in rows[-1].items()})
+
+    df = pd.DataFrame(rows)
+    os.makedirs(FIGURES_DIR, exist_ok=True)
+    out = RESULTS_DIR / "benchmark_summary.csv"
+    df.to_csv(out, index=False)
+    print(f"Saved {out}")
     if not df.empty:
-        # Plot Benchmark Gap
-        plt.figure(figsize=(10, 6))
         x = range(len(df))
-        plt.bar([i - 0.2 for i in x], df["HGS_Gap"], width=0.4, label='HGS Gap (%)')
-        plt.bar([i + 0.2 for i in x], df["ORT_Gap"], width=0.4, label='OR-Tools Gap (%)')
-        plt.xticks(x, df["Instance"])
-        plt.ylabel("Gap to SINTEF Best Known (%)")
-        plt.title("Routing Solver Performance vs Best Known Solutions")
+        plt.figure(figsize=(10, 6))
+        plt.bar([i - 0.27 for i in x], df["HGS_Gap"], width=0.27, label="HGS")
+        plt.bar([i for i in x], df["ORT_Gap"], width=0.27, label="OR-Tools")
+        plt.bar([i + 0.27 for i in x], df["NN_Gap"], width=0.27, label="Nearest Neighbour")
+        plt.xticks(list(x), df["Instance"])
+        plt.ylabel("Distance gap to best-known (%)")
         plt.legend()
-        plt.savefig("results/figures/benchmark_gap.png")
+        plt.savefig(FIGURES_DIR / "benchmark_gap.png")
         plt.close()
+
 
 if __name__ == "__main__":
     run_benchmarks()

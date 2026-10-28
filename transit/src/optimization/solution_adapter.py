@@ -9,7 +9,9 @@ def create_route_object(
     predicted_arrival_times: List[datetime],
     total_distance_km: float,
     total_predicted_time_min: float,
-    total_cost: float
+    total_cost: float,
+    run_id: Optional[str] = None,
+    stop_slack_min: Optional[List[float]] = None,
 ) -> Route:
     """
     Parses solver-specific output into a valid Route Pydantic schema instance.
@@ -23,5 +25,6 @@ def create_route_object(
         total_distance_km=total_distance_km,
         total_predicted_time_min=total_predicted_time_min,
         total_cost=total_cost,
-        optimizer_run_id=f"run_{uuid.uuid4().hex[:8]}"
+        optimizer_run_id=run_id or f"run_{uuid.uuid4().hex[:8]}",
+        stop_slack_min=stop_slack_min or [],
     )

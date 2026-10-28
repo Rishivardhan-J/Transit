@@ -1,206 +1,223 @@
+import math
 import time
 import uuid
-import numpy as np
-import math
-from typing import Dict, Any, List
+from collections import OrderedDict
 from datetime import timedelta
+from typing import Any, Dict, List, Optional
 
-from pyvrp import Model, Result
-from pyvrp.stop import MaxRuntime, MaxIterations, MultipleCriteria
+from pyvrp import Model, Route as PyRoute, Solution
+from pyvrp.stop import MaxRuntime, MultipleCriteria, NoImprovement
 
-from src.data_processing.schemas import Route, Vehicle
+from src.cost_engine.config import (
+    CostWeights, FUEL_PRICE, PRIORITY_MULTIPLIERS, PRIORITY_WINDOW_BUFFER,
+)
+from src.data_processing.schemas import Route
+from src.optimization.infeasibility import SolveResult, explain_unassigned
+from src.optimization.repair import repair_plan
+from src.optimization.routing_metrics import _rel, route_cost, simulate_route
 from src.optimization.solution_adapter import create_route_object
-from src.optimization.infeasibility import infeasibility_tracker
-from src.cost_engine.config import CostWeights
-from src.cost_engine.cost_function import compute_edge_cost
 
-def solve_with_hgs(
+SCALE = 100            # distances (0.01 unit) and durations (0.01 min) become integers
+COST_SCALE = 100       # integer cost per scaled unit = weight * COST_SCALE
+PRIZE_BASE = 10 ** 9   # large enough that serving an order always beats skipping it
+
+
+def _ceil(x: float) -> int:
+    return int(math.ceil(x * SCALE - 1e-9))
+
+
+def _floor(x: float) -> int:
+    return int(math.floor(x * SCALE + 1e-9))
+
+
+def _fleet_groups(vehicles) -> "OrderedDict[tuple, list]":
+    """One PyVRP vehicle type per (capacity, fuel efficiency, availability window)."""
+    groups: "OrderedDict[tuple, list]" = OrderedDict()
+    for v in vehicles:
+        groups.setdefault((v.capacity, v.fuel_efficiency, v.available_from, v.available_until), []).append(v)
+    return groups
+
+
+def _window(problem: dict, order, weights: CostWeights):
+    """Order time window in minutes from base_time, tightened for urgent/high priority by w_delay."""
+    start, end = _rel(problem, order.time_window_start), _rel(problem, order.time_window_end)
+    frac = PRIORITY_WINDOW_BUFFER.get(order.priority.value, 0.0) * weights.w_delay
+    return start, max(start, end - frac * (end - start))
+
+
+def build_hgs_model(problem: Dict[str, Any], weights: CostWeights, vehicle_fixed_cost: float = 0.0):
+    """Builds the PyVRP model. Returns (model, meta) where meta maps solver indices back to our entities.
+
+    Objective mapping (all integers, cost unit = 1/(SCALE*COST_SCALE)):
+      * edge distance  = true distance, edge duration = predicted minutes (ML/speed/Euclidean matrix)
+      * unit_distance_cost = w_distance + w_fuel * FUEL_PRICE / fuel_efficiency   (per vehicle type)
+      * unit_duration_cost = w_time                                               (per vehicle type)
+      * w_delay: urgent/high orders get their window end pulled in by PRIORITY_WINDOW_BUFFER * w_delay
+        of the window width, and every order's prize scales with its priority multiplier.
+    Clients are optional with a huge prize, so the solver always returns a feasible solution and
+    orders that cannot be served come back as an explicit unassigned set.
+    """
+    orders, vehicles = problem["orders"], problem["vehicles"]
+    D, T = problem["dist_matrix"], problem["time_matrix"]
+    max_cap = max(v.capacity for v in vehicles)
+    horizon = max(_rel(problem, v.available_until) for v in vehicles)
+
+    m = Model()
+    depot_loc = m.add_location(x=problem["coords"][0][0], y=problem["coords"][0][1])
+    m.add_depot(location=depot_loc, tw_early=0, tw_late=_floor(horizon))
+
+    groups = _fleet_groups(vehicles)
+    types = []
+    for (cap, eff, avail_from, avail_until), members in groups.items():
+        cpk = weights.w_distance + weights.w_fuel * FUEL_PRICE / eff
+        ucd = max(1, round(cpk * COST_SCALE)) if cpk > 0 else 1
+        ucu = round(weights.w_time * COST_SCALE)
+        m.add_vehicle_type(
+            len(members),
+            capacity=int(cap),
+            start_depot=m.depots[0],
+            end_depot=m.depots[0],
+            fixed_cost=int(vehicle_fixed_cost * SCALE * COST_SCALE),
+            tw_early=_ceil(_rel(problem, avail_from)),
+            tw_late=_floor(_rel(problem, avail_until)),
+            unit_distance_cost=ucd,
+            unit_duration_cost=ucu,
+        )
+        types.append(members)
+
+    nodes = [0]          # problem node index per PyVRP location
+    client_nodes = []    # problem node index per client
+    locs = [depot_loc]
+    unassigned = []
+    for i, o in enumerate(orders):
+        if o.demand_weight > max_cap:
+            unassigned.append({"order_id": o.order_id, "reason": explain_unassigned(problem, i)})
+            continue
+        early, late = _window(problem, o, weights)
+        loc = m.add_location(x=problem["coords"][i + 1][0], y=problem["coords"][i + 1][1])
+        m.add_client(
+            location=loc,
+            delivery=int(math.ceil(o.demand_weight)),
+            service_duration=_ceil(o.service_time_minutes),
+            tw_early=_ceil(early),
+            tw_late=_floor(late),
+            prize=int(PRIZE_BASE * PRIORITY_MULTIPLIERS.get(o.priority.value, 1.0)),
+            required=False,
+        )
+        locs.append(loc)
+        nodes.append(i + 1)
+        client_nodes.append(i + 1)
+
+    for a, na in zip(locs, nodes):
+        for b, nb in zip(locs, nodes):
+            if a is not b:
+                m.add_edge(a, b, distance=int(round(D[na][nb] * SCALE)), duration=_ceil(float(T[na][nb])))
+
+    meta = {"types": types, "client_nodes": client_nodes, "excluded": unassigned}
+    return m, meta
+
+
+def plan_from_solution(meta: dict, solution) -> Dict[str, List[int]]:
+    """PyVRP solution -> {vehicle_id: [order nodes]}."""
+    pools = [list(members) for members in meta["types"]]
+    plan = {}
+    for pr in solution.routes():
+        nodes = [meta["client_nodes"][a.idx] for a in pr if a.is_client()]
+        if nodes:
+            plan[pools[pr.vehicle_type()].pop(0).vehicle_id] = nodes
+    return plan
+
+
+def solution_from_plan(model, meta: dict, plan: Dict[str, List[int]]) -> Solution:
+    """{vehicle_id: [order nodes]} -> PyVRP Solution for warm starts."""
+    data = model.data()
+    client_of = {node: k for k, node in enumerate(meta["client_nodes"])}
+    type_of = {v.vehicle_id: t for t, members in enumerate(meta["types"]) for v in members}
+    routes = [
+        PyRoute(data, [client_of[n] for n in nodes if n in client_of], type_of[vid])
+        for vid, nodes in plan.items() if any(n in client_of for n in nodes)
+    ]
+    return Solution(data, routes)
+
+
+def result_to_routes(problem: dict, weights: CostWeights, meta: dict, solution, run_id: str, prefix: str = "rt") -> List[Route]:
+    """Convert a PyVRP solution into Route objects with float-simulated schedules and per-route cost."""
+    pools = [list(members) for members in meta["types"]]
+    base = problem["base_time"]
+    routes = []
+    for pr in solution.routes():
+        nodes = [meta["client_nodes"][a.idx] for a in pr if a.is_client()]
+        if not nodes:
+            continue
+        vehicle = pools[pr.vehicle_type()].pop(0)
+        sim = simulate_route(problem, vehicle, nodes)
+        routes.append(create_route_object(
+            vehicle=vehicle,
+            ordered_stops=[problem["orders"][n - 1].order_id for n in nodes],
+            predicted_arrival_times=[base + timedelta(minutes=a) for a in sim.arrivals_min],
+            total_distance_km=sim.distance,
+            total_predicted_time_min=sim.end_min - sim.depart_min,
+            total_cost=route_cost(problem, vehicle, sim, weights),
+            run_id=run_id,
+            stop_slack_min=sim.slack_min,
+        ))
+    return routes
+
+
+def unassigned_report(problem: dict, meta: dict, routes: List[Route]) -> List[dict]:
+    served = {s for r in routes for s in r.ordered_stops}
+    out = list(meta["excluded"])
+    for n in meta["client_nodes"]:
+        o = problem["orders"][n - 1]
+        if o.order_id not in served:
+            out.append({"order_id": o.order_id, "reason": explain_unassigned(problem, n - 1)})
+    return out
+
+
+def solve_hgs(
     problem: Dict[str, Any],
     weights: CostWeights,
     max_runtime_seconds: float = 30.0,
     max_iterations_no_improvement: int = 2000,
-    seed: int = 42
-) -> List[Route]:
-    """
-    Solves a CVRPTW problem instance using PyVRP's HGS implementation.
-    """
-    orders = problem["orders"]
-    vehicles = problem["vehicles"]
-    dist_matrix = problem["dist_matrix"]
-    time_matrix = problem["time_matrix"]
-    
-    n_customers = len(orders)
-    
-    TIME_MUL = 100
-    
-    m = Model()
-    m.add_vehicle_type(len(vehicles), capacity=int(vehicles[0].capacity))
-    
-    # Depot is index 0
-    depot_loc = m.add_location(x=problem["depot_lat"], y=problem["depot_lng"])
-    depot = m.add_depot(
-        location=depot_loc,
-        tw_early=0,
-        tw_late=int((vehicles[0].available_until - vehicles[0].available_from).total_seconds() / 60) * TIME_MUL
-    )
-    
-    clients = []
-    base_time = vehicles[0].available_from
-    
-    # Track which clients are strictly infeasible before adding
-    valid_orders = []
-    valid_indices = []
-    
-    client_locs = []
-    
-    for i, order in enumerate(orders):
-        # Time windows relative to base_time in minutes
-        tw_early = int((order.time_window_start - base_time).total_seconds() / 60)
-        tw_late = int((order.time_window_end - base_time).total_seconds() / 60)
-        service = int(order.service_time_minutes)
-        demand = int(order.demand_weight)
-        
-        # Simple feasibility check: if demand > capacity, exclude immediately
-        if demand > vehicles[0].capacity:
-            infeasibility_tracker.record_unassigned(order, "Demand exceeds max vehicle capacity")
-            continue
-            
-        valid_orders.append(order)
-        valid_indices.append(i + 1)
-        
-        client_loc = m.add_location(x=order.delivery_lat, y=order.delivery_lng)
-        client_locs.append(client_loc)
-        
-        client = m.add_client(
-            location=client_loc,
-            delivery=demand,
-            service_duration=service * TIME_MUL,
-            tw_early=max(0, tw_early * TIME_MUL),
-            tw_late=tw_late * TIME_MUL
-        )
-
-    locations = [depot_loc] + client_locs
-    
-    # Build edges using the dynamic cost engine
-    # In PyVRP Model, distance is used as the objective cost. We map our total_cost -> distance.
-    # We map time_matrix -> duration.
-    for i, frm in enumerate(locations):
-        for j, to in enumerate(locations):
-            # i, j map to valid_indices
-            orig_i = 0 if i == 0 else valid_indices[i-1]
-            orig_j = 0 if j == 0 else valid_indices[j-1]
-            
-            dist_km = dist_matrix[orig_i, orig_j]
-            pred_time = time_matrix[orig_i, orig_j]
-            
-            target_order = None
-            if j > 0:
-                target_order = valid_orders[j-1]
-                
-            priority = target_order.priority if target_order else "standard"
-            time_window_end_min = int((target_order.time_window_end - base_time).total_seconds() / 60) if target_order else 999999
-            
-            # For HGS initialization we don't have arrival times yet, so we assume arrival_time=0 
-            # for the cost setup, letting PyVRP handle TW natively via tw_late. 
-            # Our custom cost engine acts as the edge weight.
-            edge_cost = compute_edge_cost(
-                distance_km=dist_km,
-                predicted_time_min=pred_time,
-                fuel_efficiency=vehicles[0].fuel_efficiency,
-                priority=priority,
-                arrival_time_min=0.0, 
-                time_window_end=time_window_end_min,
-                weights=weights,
-                is_infeasible=False
-            )
-            
-            m.add_edge(frm, to, distance=int(edge_cost * 1000), duration=int(pred_time * TIME_MUL))
-
-    # Solve
+    seed: int = 42,
+    vehicle_fixed_cost: float = 0.0,
+    initial_solution: Optional[Solution] = None,
+    model_and_meta=None,
+) -> SolveResult:
+    """Solve with PyVRP's Hybrid Genetic Search. Always returns a feasible SolveResult."""
+    t0 = time.time()
+    m, meta = model_and_meta or build_hgs_model(problem, weights, vehicle_fixed_cost)
     res = m.solve(
-        stop=MultipleCriteria([
-            MaxRuntime(max_runtime_seconds),
-            MaxIterations(max_iterations_no_improvement)
-        ]),
+        stop=MultipleCriteria([MaxRuntime(max_runtime_seconds), NoImprovement(max_iterations_no_improvement)]),
         seed=seed,
-        display=False
+        display=False,
+        initial_solution=initial_solution,
     )
-    
-    # Parse solution
-    routes = []
-    if not res.best.is_feasible():
-        # Handle infeasibility - in Phase 3 we rely on PyVRP's internal mechanisms 
-        # but if it fails completely, we return empty and all are unassigned.
-        for o in valid_orders:
-            infeasibility_tracker.record_unassigned(o, "Solver failed to find feasible global route")
-        return []
+    best = res.best
+    repaired = False
+    if not best.is_feasible():
+        # Optional clients with large prizes can leave PyVRP with an infeasible best after a short run.
+        # Strip violating stops, re-insert what fits, and polish from that feasible plan.
+        plan, _ = repair_plan(problem, plan_from_solution(meta, best))
+        warm = solution_from_plan(m, meta, plan)
+        left = max(0.5, max_runtime_seconds - (time.time() - t0))
+        res = m.solve(stop=MultipleCriteria([MaxRuntime(left), NoImprovement(max_iterations_no_improvement)]),
+                      seed=seed, display=False, initial_solution=warm)
+        best = res.best if res.best.is_feasible() else warm
+        repaired = True
+    run_id = f"run_{uuid.uuid4().hex[:8]}"
+    routes = result_to_routes(problem, weights, meta, best, run_id)
+    return SolveResult(
+        routes=routes,
+        unassigned=unassigned_report(problem, meta, routes),
+        run_id=run_id,
+        solver="hgs",
+        runtime_s=time.time() - t0,
+        stats={"iterations": res.num_iterations, "pyvrp_feasible": bool(best.is_feasible()), "repaired": repaired},
+    )
 
-    # Map PyVRP routes to schemas
-    for route_idx, pyvrp_route in enumerate(res.best.routes()):
-        ordered_stops_ids = []
-        predicted_arrival_times = []
-        
-        current_time = 0.0
-        current_loc_idx = 0
-        total_dist_km = 0.0
-        total_time_min = 0.0
-        
-        for activity in pyvrp_route:
-            if not activity.is_client():
-                continue
-            client_node = activity.idx
-            # In PyVRP, client idx is 0-indexed among clients.
-            # It directly maps to our valid_orders array since we added them in order.
-            order = valid_orders[client_node]
-            ordered_stops_ids.append(order.order_id)
-            
-            orig_i = 0 if current_loc_idx == 0 else valid_indices[current_loc_idx-1]
-            orig_j = valid_indices[client_node]
-            
-            # Update current_loc_idx to the location index of this client (1-based in valid_indices)
-            current_loc_idx = client_node + 1
-            
-            step_dist = dist_matrix[orig_i, orig_j]
-            step_time = time_matrix[orig_i, orig_j]
-            
-            total_dist_km += step_dist
-            total_time_min += step_time
-            
-            current_time += step_time
-            # Wait if arriving before time window
-            order_tw_early = int((order.time_window_start - base_time).total_seconds() / 60)
-            if current_time < order_tw_early:
-                current_time = order_tw_early
-                
-            arrival_datetime = base_time + timedelta(minutes=current_time)
-            predicted_arrival_times.append(arrival_datetime)
-            
-            # add service time
-            current_time += order.service_time_minutes
-            
-        # Add return to depot
-        orig_i = valid_indices[current_loc_idx-1]
-        orig_j = 0
-        step_dist = dist_matrix[orig_i, orig_j]
-        step_time = time_matrix[orig_i, orig_j]
-        
-        total_dist_km += step_dist
-        total_time_min += step_time
-        
-        # Calculate total cost for route using cost engine
-        # Simplified sum for adapter
-        total_cost = res.best.distance() / 1000.0 
-        
-        vehicle = vehicles[route_idx] if route_idx < len(vehicles) else vehicles[0]
-        
-        route_obj = create_route_object(
-            vehicle=vehicle,
-            ordered_stops=ordered_stops_ids,
-            predicted_arrival_times=predicted_arrival_times,
-            total_distance_km=total_dist_km,
-            total_predicted_time_min=total_time_min,
-            total_cost=total_cost
-        )
-        routes.append(route_obj)
-        
-    return routes
+
+def solve_with_hgs(problem: Dict[str, Any], weights: CostWeights, max_runtime_seconds: float = 30.0,
+                   max_iterations_no_improvement: int = 2000, seed: int = 42, **kw) -> List[Route]:
+    """Backwards-compatible wrapper returning only the routes."""
+    return solve_hgs(problem, weights, max_runtime_seconds, max_iterations_no_improvement, seed, **kw).routes

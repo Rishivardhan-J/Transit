@@ -1,5 +1,5 @@
 from typing import Optional, Dict
-from src.cost_engine.config import CostWeights, PRIORITY_MULTIPLIERS
+from src.cost_engine.config import CostWeights, PRIORITY_MULTIPLIERS, FUEL_PRICE
 
 def compute_delay_penalty(
     arrival_time_minutes: float, 
@@ -17,7 +17,7 @@ def compute_delay_penalty(
     multiplier = PRIORITY_MULTIPLIERS.get(priority.lower(), 1.0)
     return delay_minutes * multiplier
 
-def compute_fuel_cost(distance_km: float, fuel_efficiency: float, fuel_price: float = 1.5) -> float:
+def compute_fuel_cost(distance_km: float, fuel_efficiency: float, fuel_price: float = FUEL_PRICE) -> float:
     """
     Computes fuel cost.
     Fuel efficiency is e.g. km per liter. Fuel price is cost per liter.

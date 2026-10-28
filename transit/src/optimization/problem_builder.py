@@ -1,10 +1,11 @@
 import os
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Optional
 from datetime import datetime, timedelta
 import uuid
 
 from src.data_processing.schemas import Order, Vehicle, Priority, VehicleType, OrderStatus
-from src.cost_engine.distance_matrix import distance_matrix_service
+import numpy as np
+from src.cost_engine.travel_time import TravelTimeProvider, EuclideanTime, SpeedProfileTime
 
 def parse_solomon_instance(filepath: str, num_customers: int = 100) -> Tuple[List[Order], List[Vehicle]]:
     """
@@ -81,36 +82,66 @@ def parse_solomon_instance(filepath: str, num_customers: int = 100) -> Tuple[Lis
 
     return orders, vehicles
 
-def build_cvrptw_problem(orders: List[Order], vehicles: List[Vehicle], use_euclidean: bool = False) -> Dict[str, Any]:
+SOLOMON_COORD_SCALE = 10.0  # parse_solomon_instance divides raw x/y by 10 to satisfy lat/lng bounds
+
+
+def pairwise_distance(coords: List[Tuple[float, float]], euclidean: bool = False, scale: float = 1.0) -> np.ndarray:
+    """NxN distance matrix. Haversine km for lat/lng, or planar Euclidean (times `scale`)."""
+    c = np.asarray(coords, dtype=float)
+    if euclidean:
+        d = np.sqrt(((c[:, None, :] - c[None, :, :]) ** 2).sum(-1)) * scale
+    else:
+        lat, lng = np.radians(c[:, 0]), np.radians(c[:, 1])
+        dlat = lat[None, :] - lat[:, None]
+        dlng = lng[None, :] - lng[:, None]
+        a = np.sin(dlat / 2) ** 2 + np.cos(lat)[:, None] * np.cos(lat)[None, :] * np.sin(dlng / 2) ** 2
+        d = 2 * 6371.0 * np.arcsin(np.sqrt(np.clip(a, 0.0, 1.0)))
+    np.fill_diagonal(d, 0.0)
+    return d
+
+
+def build_cvrptw_problem(
+    orders: List[Order],
+    vehicles: List[Vehicle],
+    use_euclidean: bool = False,
+    coord_scale: float = 1.0,
+    time_provider: Optional[TravelTimeProvider] = None,
+    depart_hour: Optional[float] = None,
+) -> Dict[str, Any]:
     """
-    Transforms Orders and Vehicles into a CVRPTW problem representation suitable 
-    for PyVRP or OR-Tools solvers. Assumes single depot from the vehicles' start coords.
+    Builds the single-depot CVRPTW problem dict shared by every solver.
+
+    Node 0 is the depot (first vehicle's start coordinates); node i>0 is orders[i-1].
+    Units: `dist_matrix` is km for lat/lng data (or raw instance units when
+    `use_euclidean`, with `coord_scale` undoing any coordinate down-scaling);
+    `time_matrix` is minutes from `time_provider` (default: Euclidean 1 unit = 1 min
+    for planar data, speed profile for lat/lng).
     """
     if not vehicles:
         raise ValueError("Must provide at least one vehicle")
-        
-    depot_lat = vehicles[0].current_lat if vehicles[0].current_lat else 0.0
-    depot_lng = vehicles[0].current_lng if vehicles[0].current_lng else 0.0
 
-    # Build coordinates array: index 0 is depot, 1..N are customers
-    coords = [(depot_lat, depot_lng)]
-    for o in orders:
-        coords.append((o.delivery_lat, o.delivery_lng))
-        
-    # Pre-build distance matrix
-    dist_matrix = distance_matrix_service.build_matrix(coords, use_euclidean=use_euclidean)
-    
-    # We will compute the time matrix simply as distance / speed (e.g. 60km/h = 1km/min)
-    # This is a naive translation for baseline/benchmark when ML predictions aren't directly injected
-    time_matrix = dist_matrix  # 1 km = 1 min
-    
-    # Return standard dictionary representation
+    v0 = vehicles[0]
+    depot_lat = v0.current_lat if v0.current_lat is not None else 0.0
+    depot_lng = v0.current_lng if v0.current_lng is not None else 0.0
+    coords = [(depot_lat, depot_lng)] + [(o.delivery_lat, o.delivery_lng) for o in orders]
+
+    dist = pairwise_distance(coords, euclidean=use_euclidean, scale=coord_scale)
+    base_time = min(v.available_from for v in vehicles)
+    if time_provider is None:
+        time_provider = EuclideanTime() if use_euclidean else SpeedProfileTime()
+    hour = depart_hour if depart_hour is not None else base_time.hour + base_time.minute / 60.0
+    time = time_provider.matrix(coords, dist, hour)
+
     return {
         "coords": coords,
-        "dist_matrix": dist_matrix,
-        "time_matrix": time_matrix,
+        "dist_matrix": dist,
+        "time_matrix": time,
         "orders": orders,
         "vehicles": vehicles,
         "depot_lat": depot_lat,
         "depot_lng": depot_lng,
+        "base_time": base_time,
+        "units": "planar" if use_euclidean else "km",
+        "_build_args": {"use_euclidean": use_euclidean, "coord_scale": coord_scale,
+                        "time_provider": time_provider, "depart_hour": depart_hour},
     }

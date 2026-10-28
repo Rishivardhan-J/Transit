@@ -21,7 +21,7 @@ def measure_batch_timing():
     all_orders = orders + new_orders
     
     print(f"Total orders: {len(all_orders)}")
-    prob = build_cvrptw_problem(all_orders, vehicles)
+    prob = build_cvrptw_problem(all_orders, vehicles, use_euclidean=True, coord_scale=10.0)
     weights = CostWeights.auto_normalize(1.0, 1.0, 0.0, 0.0)
     
     # Disclaimer: duplicated coordinates/demands are not a realistic routing problem!

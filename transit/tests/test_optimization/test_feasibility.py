@@ -1,100 +1,93 @@
+"""SC-05/SC-06/SC-07: every solver's routes are re-simulated by an independent evaluator."""
 import pytest
-from datetime import timedelta
-import os
-from pathlib import Path
 
-from src.optimization.problem_builder import parse_solomon_instance, build_cvrptw_problem
-from src.optimization.hgs_solver import solve_with_hgs
-from src.optimization.baselines import solve_with_ortools, solve_with_nn
 from src.cost_engine.config import CostWeights
-from src.paths import PROJECT_ROOT, BENCHMARK_DIR
+from src.optimization.baselines import solve_nn, solve_ortools
+from src.optimization.hgs_solver import solve_hgs
+from src.optimization.problem_builder import SOLOMON_COORD_SCALE, build_cvrptw_problem, parse_solomon_instance
+from src.optimization.routing_metrics import evaluate_solution
+from src.paths import BENCHMARK_DIR
 
-# The extracted Solomon benchmark directory
-BENCHMARK_DIR = BENCHMARK_DIR / "solomon"
+SOLOMON = BENCHMARK_DIR / "solomon"
+WEIGHTS = CostWeights(w_distance=1.0, w_time=0.0, w_fuel=0.0, w_delay=0.0)
 
-@pytest.fixture(scope="module")
-def default_weights():
-    return CostWeights.auto_normalize(1.0, 1.0, 0.0, 0.0)
 
-@pytest.mark.parametrize("instance_name, num_customers", [
-    ("C101.txt", 25),
-    ("R101.txt", 25),
-    ("RC101.txt", 25),
-])
-@pytest.mark.parametrize("solver_name", ["HGS", "OR-Tools", "NN"])
-def test_feasibility_solomon(instance_name, num_customers, default_weights, solver_name):
-    filepath = BENCHMARK_DIR / instance_name
-    if not filepath.exists():
-        pytest.skip(f"Benchmark file {filepath} not found.")
+def load(inst, n):
+    path = SOLOMON / f"{inst}.txt"
+    if not path.exists():
+        pytest.skip(f"{path} not found")
+    orders, vehicles = parse_solomon_instance(str(path), num_customers=n)
+    return build_cvrptw_problem(orders, vehicles, use_euclidean=True, coord_scale=SOLOMON_COORD_SCALE)
 
-    orders, vehicles = parse_solomon_instance(str(filepath), num_customers=num_customers)
-    problem = build_cvrptw_problem(orders, vehicles, use_euclidean=True)
 
-    if solver_name == "HGS":
-        routes = solve_with_hgs(
-            problem=problem,
-            weights=default_weights,
-            max_runtime_seconds=5.0,
-            max_iterations_no_improvement=200
-        )
-    elif solver_name == "OR-Tools":
-        routes = solve_with_ortools(
-            problem=problem,
-            weights=default_weights,
-            max_runtime_seconds=5.0
-        )
-    elif solver_name == "NN":
-        routes = solve_with_nn(
-            problem=problem,
-            weights=default_weights
-        )
+def run(solver, problem):
+    if solver == "HGS":
+        return solve_hgs(problem, WEIGHTS, 5.0, 300)
+    if solver == "OR-Tools":
+        return solve_ortools(problem, WEIGHTS, 5.0)
+    return solve_nn(problem, WEIGHTS)
 
-    assert len(routes) > 0, "Solver should return at least one route"
 
-    assigned_orders = set()
+@pytest.mark.parametrize("inst", ["C101", "R101", "RC101"])
+@pytest.mark.parametrize("solver", ["HGS", "OR-Tools", "NN"])
+def test_no_constraint_violations(inst, solver):
+    problem = load(inst, 25)
+    res = run(solver, problem)
+    m = evaluate_solution(res.routes, problem, WEIGHTS, res.unassigned)
+    assert res.routes, "solver should return at least one route"
+    assert m["violations"] == [], f"{solver} violated constraints: {m['violations'][:3]}"
+    assert m["orders_assigned"] + m["orders_unassigned"] == 25
 
-    for route in routes:
-        vehicle = next((v for v in vehicles if v.vehicle_id == route.vehicle_id), None)
-        assert vehicle is not None, f"Vehicle {route.vehicle_id} not found"
-        
-        # 1. Capacity constraints
-        total_demand = 0.0
-        
-        # If solver doesn't predict arrival times, we simulate them to check feasibility
-        # OR-Tools currently returns empty predicted_arrival_times, we should check it using our own accumulator
-        
-        current_time_min = 0.0
-        curr_node = 0
-        base_time = vehicle.available_from
-        
-        for i, order_id in enumerate(route.ordered_stops):
-            order = next(o for o in orders if o.order_id == order_id)
-            node_idx = problem["orders"].index(order) + 1
-            
-            total_demand += order.demand_weight
-            
-            travel_t = problem["time_matrix"][curr_node][node_idx]
-            
-            arrival_time_min = current_time_min + travel_t
-            
-            tw_start_min = (order.time_window_start - base_time).total_seconds() / 60
-            tw_end_min = (order.time_window_end - base_time).total_seconds() / 60
-            
-            arrival_time_min = max(arrival_time_min, tw_start_min)
-            
-            assert arrival_time_min <= tw_end_min + 5, f"{solver_name} failed: Late arrival at {order_id}. Arrived {arrival_time_min}, Due {tw_end_min}"
-            
-            current_time_min = arrival_time_min + order.service_time_minutes
-            curr_node = node_idx
-            
-            assigned_orders.add(order_id)
-            
-        assert total_demand <= vehicle.capacity, f"{solver_name} failed: Capacity exceeded on route {route.route_id}"
-        
-    # In a full solve, every order should be assigned unless explicitly marked infeasible.
-    if solver_name in ["HGS", "OR-Tools"]:
-        assert len(assigned_orders) == num_customers, f"{solver_name} failed: Not all orders were assigned!"
-    else:
-        # NN might leave some unassigned due to its greedy nature being unable to pack properly
-        pass
 
+@pytest.mark.parametrize("inst", ["C101", "R101", "RC101"])
+def test_hgs_assigns_all_feasible_orders(inst):
+    problem = load(inst, 25)
+    res = run("HGS", problem)
+    assert res.unassigned == []
+
+
+def test_unassigned_orders_are_reported_with_reason():
+    problem = load("C101", 10)
+    problem["orders"][0].demand_weight = 10_000.0  # larger than any vehicle
+    res = run("HGS", problem)
+    reported = {u["order_id"]: u["reason"] for u in res.unassigned}
+    assert problem["orders"][0].order_id in reported
+    assert "capacity" in reported[problem["orders"][0].order_id]
+    assert evaluate_solution(res.routes, problem, WEIGHTS, res.unassigned)["violations"] == []
+
+
+def test_evaluator_catches_violations():
+    """The checker itself must flag a capacity breach and a silently dropped order."""
+    problem = load("C101", 10)
+    res = run("HGS", problem)
+    bad = res.routes[0].model_copy(deep=True)
+    dropped = bad.ordered_stops.pop()
+    bad.predicted_arrival_times.pop()
+    problem["vehicles"][0].capacity = 1.0
+    m = evaluate_solution([bad], problem, WEIGHTS, [])
+    assert f"silently_dropped:{dropped}" in m["violations"]
+    assert any(v.startswith("capacity") for v in m["violations"])
+
+
+@pytest.mark.slow
+def test_hgs_c101_within_one_percent_of_best_known():
+    problem = load("C101", 100)
+    res = solve_hgs(problem, WEIGHTS, 20.0, 3000, vehicle_fixed_cost=1000.0)
+    m = evaluate_solution(res.routes, problem, WEIGHTS, res.unassigned)
+    assert m["violations"] == []
+    assert m["vehicles_used"] == 10
+    assert m["total_distance"] <= 828.94 * 1.01
+
+
+@pytest.mark.slow
+def test_hgs_beats_both_baselines_on_r101():
+    problem = load("R101", 100)
+    h = solve_hgs(problem, WEIGHTS, 15.0, 3000, vehicle_fixed_cost=1000.0)
+    o = solve_ortools(problem, WEIGHTS, 15.0, vehicle_fixed_cost=1000.0)
+    n = solve_nn(problem, WEIGHTS)
+    mh, mo, mn = (evaluate_solution(r.routes, problem, WEIGHTS, r.unassigned) for r in (h, o, n))
+    assert not mh["violations"] and not mo["violations"] and not mn["violations"]
+    assert (mh["orders_unassigned"], mh["vehicles_used"], mh["total_distance"]) <= \
+           (mo["orders_unassigned"], mo["vehicles_used"], mo["total_distance"])
+    assert (mh["orders_unassigned"], mh["vehicles_used"], mh["total_distance"]) < \
+           (mn["orders_unassigned"], mn["vehicles_used"], mn["total_distance"])

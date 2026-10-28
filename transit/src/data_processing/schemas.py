@@ -76,6 +76,7 @@ class Route(BaseModel):
     total_predicted_time_min: float = Field(..., ge=0.0)
     total_cost: float = Field(..., ge=0.0)
     optimizer_run_id: str = Field(..., description="Identifier for the optimization run that produced this route")
+    stop_slack_min: List[float] = Field(default_factory=list, description="Minutes between planned service start and window end, per stop")
 
     @model_validator(mode='after')
     def check_stops_match_predictions(self) -> 'Route':

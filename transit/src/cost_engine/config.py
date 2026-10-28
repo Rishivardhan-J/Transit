@@ -48,3 +48,10 @@ PRESETS: Dict[str, CostWeights] = {
     "distance_focused": CostWeights(w_distance=0.7, w_time=0.1, w_fuel=0.1, w_delay=0.1),
     "balanced": CostWeights(w_distance=0.25, w_time=0.25, w_fuel=0.25, w_delay=0.25)
 }
+
+# Fuel price per litre used by both the solver objective and route cost reporting.
+FUEL_PRICE = 1.5
+
+# Fraction of a high-priority order's time window held back as a safety buffer,
+# scaled by w_delay (see hgs_solver.solve_hgs docstring).
+PRIORITY_WINDOW_BUFFER: Dict[str, float] = {"urgent": 0.25, "high": 0.10}
