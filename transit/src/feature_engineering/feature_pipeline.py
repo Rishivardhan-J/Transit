@@ -5,6 +5,7 @@ import os
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OrdinalEncoder
+from src.paths import PROJECT_ROOT
 
 class SpatialDistanceTransformer(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None):
@@ -59,10 +60,10 @@ def build_feature_pipeline() -> Pipeline:
         ('encoder', CategoricalEncoder())
     ])
 
-def save_pipeline(pipeline: Pipeline, output_dir: str = "transit/results/models") -> str:
+def save_pipeline(pipeline: Pipeline, output_dir: str = str(PROJECT_ROOT / "results/models")) -> str:
     import datetime
     os.makedirs(output_dir, exist_ok=True)
-    timestamp = datetime.datetime.now().strftime("%Y%M%d_%H%M%S")
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     filepath = os.path.join(output_dir, f"feature_pipeline_{timestamp}_unset.pkl")
     with open(filepath, 'wb') as f:
         pickle.dump(pipeline, f)

@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: transit
+    services:
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: transit/requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Lint
+        run: ruff check src backend scripts tests --select E9,F63,F7,F82
+      - name: Download Solomon benchmarks
+        run: python -m src.data_processing.ingest_track_b || true
+      - name: Test
+        run: pytest -q -m "not slow"
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: transit/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: transit/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build

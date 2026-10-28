@@ -3,6 +3,7 @@ import sys
 import logging
 from pathlib import Path
 import subprocess
+from src.paths import PROJECT_ROOT
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -17,7 +18,7 @@ KAGGLE_COMPETITIONS = {
     "nyc_taxi": "nyc-taxi-trip-duration"
 }
 
-RAW_DATA_DIR = Path("transit/data/raw")
+RAW_DATA_DIR = PROJECT_ROOT / "data/raw"
 
 def verify_kaggle_credentials():
     """

@@ -3,11 +3,12 @@ import urllib.request
 import zipfile
 import logging
 from pathlib import Path
+from src.paths import PROJECT_ROOT
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-BENCHMARK_DIR = Path("transit/data/benchmark")
+BENCHMARK_DIR = PROJECT_ROOT / "data/benchmark"
 
 # Solomon benchmark source (usually hosted at sintef or various academic mirrors)
 SOLOMON_URL = "http://web.cba.neu.edu/~msolomon/solomon_100.zip" 

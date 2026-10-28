@@ -10,13 +10,14 @@ from src.optimization.problem_builder import build_cvrptw_problem
 from src.optimization.hgs_solver import solve_with_hgs
 from src.cost_engine.config import CostWeights
 from src.models.predict import predict_delivery_time
+from src.paths import PROJECT_ROOT
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def main():
     # Load demo_city.parquet
-    data_path = "transit/data/processed/demo_city.parquet"
+    data_path = str(PROJECT_ROOT / "data/processed/demo_city.parquet")
     if not os.path.exists(data_path):
         logger.error(f"Demo city data not found at {data_path}")
         return
@@ -69,7 +70,7 @@ def main():
     problem = build_cvrptw_problem(orders, vehicles, use_euclidean=False)
     
     # Attempt ML override
-    pipeline_path = "transit/results/models/latest/feature_pipeline.pkl"
+    pipeline_path = str(PROJECT_ROOT / "results/models/latest/feature_pipeline.pkl")
     try:
         logger.info("Attempting to populate time_matrix via ML predict.py...")
         # We would loop through pairs and call predict_delivery_time.
@@ -100,7 +101,7 @@ def main():
     logger.info(f"Solver finished. Found {len(routes)} routes.")
     
     # Save to results/routes
-    out_dir = "transit/results/routes"
+    out_dir = str(PROJECT_ROOT / "results/routes")
     os.makedirs(out_dir, exist_ok=True)
     
     out_file = os.path.join(out_dir, "demo_city_routes.json")

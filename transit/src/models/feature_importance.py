@@ -3,9 +3,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.inspection import permutation_importance
 import os
+from src.paths import PROJECT_ROOT
 
 def compute_and_plot_importance(model, X_val, y_val, feature_names, 
-                                output_path="transit/results/figures/feature_importance_comparison.png"):
+                                output_path=str(PROJECT_ROOT / "results/figures/feature_importance_comparison.png")):
     """
     Computes both impurity-based (if available) and permutation-based feature importance.
     Plots them side-by-side for cross-checking.

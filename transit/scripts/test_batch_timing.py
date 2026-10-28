@@ -3,12 +3,13 @@ import sys
 from src.optimization.problem_builder import parse_solomon_instance, build_cvrptw_problem
 from src.optimization.hgs_solver import solve_with_hgs
 from src.cost_engine.config import CostWeights
+from src.paths import PROJECT_ROOT
 
 def measure_batch_timing():
     print("Testing batch timing for a duplicated 200-order instance...")
     
     # Load 100 customers from C101
-    orders, vehicles = parse_solomon_instance("transit/data/benchmark/solomon/C101.txt", num_customers=100)
+    orders, vehicles = parse_solomon_instance(str(PROJECT_ROOT / "data/benchmark/solomon/C101.txt"), num_customers=100)
     
     # Duplicate the orders to create a 200-order instance
     new_orders = []

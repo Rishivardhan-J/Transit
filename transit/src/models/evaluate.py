@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import os
+from src.paths import PROJECT_ROOT
 
 def pinball_loss(y_true, y_pred, alpha):
     """Computes the pinball loss (quantile loss) for a given quantile alpha."""
@@ -32,7 +33,7 @@ def evaluate_model(y_true, y_pred_p50, y_pred_p10=None, y_pred_p90=None):
         
     return metrics
 
-def plot_model_comparison(metrics_dict, output_path="transit/results/figures/model_comparison.png"):
+def plot_model_comparison(metrics_dict, output_path=str(PROJECT_ROOT / "results/figures/model_comparison.png")):
     """
     Plots a comparison of standard metrics (MAE, RMSE, R2) across models.
     metrics_dict format: {'ModelName': {'MAE': 10, 'RMSE': 12, 'R2': 0.8}, ...}

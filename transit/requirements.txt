@@ -30,3 +30,8 @@ websockets
 sentry-sdk
 prometheus-client
 pydantic-settings
+ijson
+optuna
+hypothesis
+ruff
+httpx

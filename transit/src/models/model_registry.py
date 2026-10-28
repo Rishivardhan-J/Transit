@@ -1,8 +1,9 @@
 import os
 import pickle
 from datetime import datetime
+from src.paths import PROJECT_ROOT
 
-def save_model(model, name: str, metadata: dict, output_dir: str = "transit/results/models") -> str:
+def save_model(model, name: str, metadata: dict, output_dir: str = str(PROJECT_ROOT / "results/models")) -> str:
     """
     Saves a trained model artifact with versioning metadata.
     """

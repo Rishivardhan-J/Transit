@@ -7,9 +7,10 @@ from src.optimization.problem_builder import parse_solomon_instance, build_cvrpt
 from src.optimization.hgs_solver import solve_with_hgs
 from src.optimization.baselines import solve_with_ortools, solve_with_nn
 from src.cost_engine.config import CostWeights
+from src.paths import PROJECT_ROOT, BENCHMARK_DIR
 
 # The extracted Solomon benchmark directory
-BENCHMARK_DIR = Path("/home/rishi/Projects/Transit/transit/data/benchmark/solomon")
+BENCHMARK_DIR = BENCHMARK_DIR / "solomon"
 
 @pytest.fixture(scope="module")
 def default_weights():

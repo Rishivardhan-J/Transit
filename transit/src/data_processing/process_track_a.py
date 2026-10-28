@@ -3,9 +3,10 @@ import numpy as np
 import os
 import json
 from datetime import datetime, timedelta
+from src.paths import PROJECT_ROOT
 
 def process_food_delivery():
-    raw_path = "transit/data/raw/food_delivery/Food_Delivery_Times.csv"
+    raw_path = str(PROJECT_ROOT / "data/raw/food_delivery/Food_Delivery_Times.csv")
     if not os.path.exists(raw_path):
         return pd.DataFrame()
         
@@ -38,7 +39,7 @@ def process_food_delivery():
     return df
 
 def process_mini_ecommerce():
-    raw_path = "transit/data/raw/mini_ecommerce/Logistics_data_kaggle .csv"
+    raw_path = str(PROJECT_ROOT / "data/raw/mini_ecommerce/Logistics_data_kaggle .csv")
     if not os.path.exists(raw_path):
         return pd.DataFrame()
         
@@ -65,7 +66,7 @@ def process_mini_ecommerce():
     return df
 
 def process_nyc_taxi():
-    raw_path = "transit/data/raw/nyc_taxi/train.csv"
+    raw_path = str(PROJECT_ROOT / "data/raw/nyc_taxi/train.csv")
     if not os.path.exists(raw_path):
         return pd.DataFrame()
         
@@ -90,7 +91,7 @@ def process_nyc_taxi():
     return df
 
 def process_amazon_last_mile():
-    base_dir = "transit/data/raw/amazon_last_mile"
+    base_dir = str(PROJECT_ROOT / "data/raw/amazon_last_mile")
     route_file = os.path.join(base_dir, "route_data.json")
     if not os.path.exists(route_file):
         return pd.DataFrame()
@@ -163,7 +164,7 @@ def combine_track_a():
             
     df_out = combined[final_cols]
     
-    out_path = "transit/data/processed/track_a_combined.parquet"
+    out_path = str(PROJECT_ROOT / "data/processed/track_a_combined.parquet")
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     df_out.to_parquet(out_path, index=False)
     print(f"Saved {len(df_out)} combined rows to {out_path}")

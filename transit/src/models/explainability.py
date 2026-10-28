@@ -2,6 +2,7 @@ import shap
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
+from src.paths import PROJECT_ROOT
 
 class ExplainerWrapper:
     def __init__(self, model):
@@ -47,7 +48,7 @@ class ExplainerWrapper:
             return results[0]
         return results
 
-def plot_global_shap_summary(model, X_val, output_path="transit/results/figures/shap_summary.png"):
+def plot_global_shap_summary(model, X_val, output_path=str(PROJECT_ROOT / "results/figures/shap_summary.png")):
     """
     Produces a global SHAP summary plot (beeswarm).
     """

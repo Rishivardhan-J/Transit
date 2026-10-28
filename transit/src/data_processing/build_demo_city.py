@@ -6,11 +6,12 @@ import logging
 
 from src.data_processing.enrich_weather import enrich_weather
 from src.data_processing.enrich_traffic import enrich_traffic
+from src.paths import PROJECT_ROOT
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-PROCESSED_DATA_DIR = Path("transit/data/processed")
+PROCESSED_DATA_DIR = PROJECT_ROOT / "data/processed"
 
 def build_demo_city():
     """

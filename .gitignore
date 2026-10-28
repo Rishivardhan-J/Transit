@@ -7,6 +7,8 @@ transit/data/raw/*
 transit/data/processed/*
 !transit/data/processed/.gitkeep
 transit/data/benchmark/*
+!transit/data/benchmark/solomon/
+transit/data/benchmark/solomon/*
 !transit/data/benchmark/.gitkeep
 transit/results/models/*
 !transit/results/models/.gitkeep
@@ -20,3 +22,15 @@ transit/results/mlruns/
 transit/results/mlruns.db
 test_split.py
 transit/results/models/
+transit/celerybeat-schedule*
+transit/test.db
+transit/transit/
+node_modules/
+transit/frontend/dist/
+mlruns.db
+!transit/data/benchmark/solomon/C101.txt
+!transit/data/benchmark/solomon/C201.txt
+!transit/data/benchmark/solomon/R101.txt
+!transit/data/benchmark/solomon/R201.txt
+!transit/data/benchmark/solomon/RC101.txt
+!transit/data/benchmark/solomon/RC201.txt

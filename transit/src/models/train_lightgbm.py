@@ -7,6 +7,7 @@ from sklearn.model_selection import RandomizedSearchCV
 import mlflow
 import mlflow.lightgbm
 
+from src.paths import MLFLOW_URI
 from src.models.config import RANDOM_SEED
 from src.models.data_split import chronological_split, get_time_series_cv
 from src.models.evaluate import evaluate_model, pinball_loss
@@ -19,7 +20,7 @@ def train_lgbm(data_path: str, pipeline_path: str, dataset_name: str):
     Logs to MLflow.
     """
     # Setup MLflow
-    mlflow_uri = "file:" + os.path.abspath("transit/results/mlruns")
+    mlflow_uri = MLFLOW_URI
     mlflow.set_tracking_uri(mlflow_uri)
     mlflow.set_experiment(f"Transit_Phase2_{dataset_name}")
     
