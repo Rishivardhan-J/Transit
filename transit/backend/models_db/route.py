@@ -11,3 +11,4 @@ class DBRoute(Base):
     total_predicted_time_min = Column(Float, nullable=False)
     total_cost = Column(Float, nullable=False)
     optimizer_run_id = Column(String, ForeignKey("optimizer_runs.id"), nullable=False)
+    stop_slack_min = Column(JSON, nullable=True)

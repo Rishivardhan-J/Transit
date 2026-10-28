@@ -58,15 +58,13 @@ class MLTravelTime(TravelTimeProvider):
             self._bundle = get_bundle("leg")
         return self._bundle
 
-    def quantile_matrices(self, coords, depart_hour: float = 12.0):
-        """Return {'p10','p50','p90'} NxN matrices in minutes."""
+    def raw_frame(self, coords, ii, jj, depart_hour: float = 12.0, **overrides):
+        """Raw leg rows (the bundle's input schema) for legs coords[ii] -> coords[jj]."""
         import pandas as pd
         from src.feature_engineering.feature_pipeline import haversine_km
-        from src.models.serving import predict_quantiles
 
-        n = len(coords)
         c = np.asarray(coords, dtype=float)
-        ii, jj = np.where(~np.eye(n, dtype=bool))
+        ii, jj = np.asarray(ii), np.asarray(jj)
         d = self.bundle.metadata["defaults"]
         day = pd.Timestamp(self.bundle.metadata["time_ranges"]["test"][1]).normalize()
         offset = {"DLA": -7, "DSE": -7, "DCH": -5, "DBO": -4, "DAU": -5}.get(self.station_code[:3], -7)
@@ -78,7 +76,17 @@ class MLTravelTime(TravelTimeProvider):
             "to_station_km": haversine_km(c[jj, 0], c[jj, 1], c[0, 0], c[0, 1]),
             **{k: v for k, v in d.items()},
         })
-        q = predict_quantiles(self.bundle, raw)
+        for k, v in overrides.items():
+            raw[k] = v
+        return raw
+
+    def quantile_matrices(self, coords, depart_hour: float = 12.0):
+        """Return {'p10','p50','p90'} NxN matrices in minutes."""
+        from src.models.serving import predict_quantiles
+
+        n = len(coords)
+        ii, jj = np.where(~np.eye(n, dtype=bool))
+        q = predict_quantiles(self.bundle, self.raw_frame(coords, ii, jj, depart_hour))
         scale = 1.0 / 60.0 if self.bundle.metadata["unit"] == "sec" else 1.0
         out = {}
         for k in ("p10", "p50", "p90"):

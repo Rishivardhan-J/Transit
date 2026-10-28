@@ -4,7 +4,7 @@ from prometheus_client import make_asgi_app
 
 from backend.config import settings
 from backend.observability.sentry_init import init_sentry
-from backend.api import auth, orders, vehicles, routes, predictions, benchmarks, models_meta, eda, dashboard
+from backend.api import auth, orders, vehicles, routes, predictions, benchmarks, models_meta, eda, dashboard, runs, replay, users
 from backend.websocket import routes_ws
 
 # Initialize Sentry
@@ -33,7 +33,7 @@ async def prometheus_middleware(request, call_next):
 # CORS setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=[o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -54,6 +54,9 @@ app.include_router(models_meta.router, prefix="/models", tags=["Models Metadata"
 app.include_router(routes_ws.router, prefix="/ws", tags=["WebSockets"])
 app.include_router(eda.router, prefix="/eda", tags=["EDA"])
 app.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
+app.include_router(runs.router, tags=["Optimizer runs"])
+app.include_router(replay.router, prefix="/replay", tags=["Replay"])
+app.include_router(users.router, prefix="/users", tags=["Users"])
 
 @app.get("/health")
 def health_check():

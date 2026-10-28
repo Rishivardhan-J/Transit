@@ -12,7 +12,6 @@ router = APIRouter()
 class UserCreate(BaseModel):
     email: str
     password: str
-    role: Role = Role.manager
 
 @router.post("/register")
 def register(user: UserCreate, db: Session = Depends(get_db)):
@@ -24,7 +23,7 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
         id=str(uuid.uuid4()),
         email=user.email,
         hashed_password=get_password_hash(user.password),
-        role=user.role
+        role=Role.manager  # privileged roles are granted only by an admin (PATCH /users/{id}/role)
     )
     db.add(new_user)
     db.commit()

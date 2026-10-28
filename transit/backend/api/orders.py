@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import pandas as pd
@@ -58,6 +58,39 @@ def create_orders_batch(orders_data: List[dict], db: Session = Depends(get_db), 
     
     db.commit()
     return {"message": f"Successfully imported {len(created_orders)} orders", "created_count": len(created_orders)}
+
+
+@router.post("/upload")
+async def upload_orders(file: UploadFile = File(...), commit: bool = False, db: Session = Depends(get_db),
+                        current_user: User = Depends(get_current_user)):
+    """Validate a CSV/Parquet order file row by row (SC-01). Bad rows are reported with their row number and
+    message, never silently dropped. With commit=true the valid rows are inserted (existing ids are skipped)."""
+    import io
+    name = (file.filename or "").lower()
+    raw = await file.read()
+    try:
+        df = pd.read_parquet(io.BytesIO(raw)) if name.endswith(".parquet") else pd.read_csv(io.BytesIO(raw))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Could not read {file.filename!r} as CSV/Parquet: {e}")
+    if df.empty:
+        raise HTTPException(status_code=400, detail="The file contains no rows.")
+    report = processor.validate_batch(df, Order)
+    bad_rows = {e.row_index for e in report.errors if getattr(e, "row_index", None) is not None}
+    created = 0
+    if commit:
+        for i, rec in enumerate(df.to_dict(orient="records")):
+            if i in bad_rows:
+                continue
+            order = Order(**{k: (None if pd.isna(v) else v) for k, v in rec.items()})
+            if not db.query(DBOrder).filter(DBOrder.order_id == order.order_id).first():
+                db.add(to_db_order(order))
+                created += 1
+        db.commit()
+    return {
+        "filename": file.filename, "total": report.total_records, "valid": report.valid_records,
+        "error_count": report.error_count, "errors": [err.model_dump() for err in report.errors][:500],
+        "committed": commit, "created": created,
+    }
 
 
 @router.get("/export", response_model=List[Order])
@@ -126,7 +159,7 @@ def delete_order(order_id: str, db: Session = Depends(get_db), current_user: Use
                 # Trigger incremental re-optimization asynchronously
                 run_incremental_reoptimization.delay(
                     r.optimizer_run_id, 
-                    {"type": "cancellation", "order_id": order_id}
+                    {"type": "cancel_order", "order_id": order_id}
                 )
                 break
                 

@@ -16,8 +16,11 @@ def mock_redis():
         yield mock_pubsub
 
 @pytest.mark.asyncio
-async def test_websocket_job_status(client, mock_redis):
+async def test_websocket_job_status(client, mock_redis, mock_manager_user):
     # The TestClient allows context manager usage for websockets
-    with client.websocket_connect("/ws/jobs/test-job-123") as websocket:
+    from backend.security.auth import create_access_token
+    from backend.models_db.base import SessionLocal  # noqa: F401
+    token = create_access_token({"sub": "manager@test.com"})
+    with client.websocket_connect(f"/ws/jobs/test-job-123?token={token}") as websocket:
         data = websocket.receive_json()
         assert data["status"] == "completed"

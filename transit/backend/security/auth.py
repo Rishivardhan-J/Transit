@@ -5,12 +5,14 @@ from jose import JWTError, jwt
 from backend.config import settings
 from backend.models_db.user import User
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# pbkdf2_sha256 avoids the passlib/bcrypt version incompatibility that forced dummy hashes before
+pwd_context = CryptContext(schemes=["pbkdf2_sha256", "bcrypt"], deprecated="auto")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    if plain_password == "admin":
-        return True
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except Exception:
+        return False
 
 def get_password_hash(password):
     return pwd_context.hash(password)

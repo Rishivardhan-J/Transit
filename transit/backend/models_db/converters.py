@@ -72,11 +72,12 @@ def to_db_route(route: Route) -> DBRoute:
         total_distance_km=route.total_distance_km,
         total_predicted_time_min=route.total_predicted_time_min,
         total_cost=route.total_cost,
-        optimizer_run_id=route.optimizer_run_id
+        optimizer_run_id=route.optimizer_run_id,
+        stop_slack_min=list(route.stop_slack_min or []),
     )
 
 def from_db_route(db_route: DBRoute) -> Route:
-    predicted_arrival_times = [datetime.fromisoformat(t) for t in db_route.predicted_arrival_times]
+    predicted_arrival_times = [datetime.fromisoformat(t.replace('Z', '+00:00')) for t in db_route.predicted_arrival_times]
     return Route(
         route_id=db_route.route_id,
         vehicle_id=db_route.vehicle_id,
@@ -85,7 +86,8 @@ def from_db_route(db_route: DBRoute) -> Route:
         total_distance_km=db_route.total_distance_km,
         total_predicted_time_min=db_route.total_predicted_time_min,
         total_cost=db_route.total_cost,
-        optimizer_run_id=db_route.optimizer_run_id
+        optimizer_run_id=db_route.optimizer_run_id,
+        stop_slack_min=list(db_route.stop_slack_min or []),
     )
 
 def to_db_prediction(pred: Prediction) -> DBPrediction:

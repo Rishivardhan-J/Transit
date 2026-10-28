@@ -32,8 +32,42 @@ def get_eta(req: PredictRequest, current_user: User = Depends(get_current_user))
             detail="Prediction models unavailable"
         )
 
+def _persisted_explanation(db: Session, order_id: str):
+    """Stop-level explanation stored by the latest optimizer run: arrival interval, window, leg SHAP."""
+    from datetime import datetime, timedelta
+    from backend.models_db.prediction import DBPrediction
+    from backend.services.optimization import latest_run
+
+    run = latest_run(db)
+    if run is None:
+        return None
+    pred = db.query(DBPrediction).filter(DBPrediction.order_id == order_id, DBPrediction.optimizer_run_id == run.id).first()
+    if pred is None or not (run.metrics or {}).get("base_time"):
+        return None
+    base = datetime.fromisoformat(run.metrics["base_time"])
+    at = lambda minutes: (base + timedelta(minutes=minutes)).isoformat()
+    meta = pred.meta or {}
+    leg = meta.get("leg") or {}
+    shap = [{"feature": f["feature"], "value": round(f["impact"] / 60.0 if f.get("unit") == "sec" else f["impact"], 3),
+             "text": f.get("text", f["feature"])} for f in (pred.shap_top_features or [])]
+    status = "late" if meta.get("likely_late") else "at_risk" if meta.get("late_risk") else "on_time"
+    return {
+        "order_id": order_id, "optimizer_run_id": run.id, "route_id": pred.route_id, "stop_index": pred.stop_index,
+        "n_stops": meta.get("n_stops"), "status": status, "model_version": pred.model_version,
+        "arrival": {"p10": at(pred.predicted_time_p10), "p50": at(pred.predicted_time_p50), "p90": at(pred.predicted_time_p90)},
+        "window_end": at(meta["window_end"]) if "window_end" in meta else None,
+        "leg_minutes": {k: round(v, 2) for k, v in leg.items()},
+        "predicted_eta_mins": int(round(leg.get("p50", 0))),
+        "p10_mins": round(leg.get("p10", 0), 1), "p50_mins": round(leg.get("p50", 0), 1), "p90_mins": round(leg.get("p90", 0), 1),
+        "shap_values": shap,
+    }
+
+
 @router.get("/{order_id}/explain")
 def explain_eta(order_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    persisted = _persisted_explanation(db, order_id)
+    if persisted:
+        return persisted
     from backend.models_db.order import DBOrder
     from backend.models_db.route import DBRoute
     from backend.models_db.vehicle import DBVehicle

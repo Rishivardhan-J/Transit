@@ -54,3 +54,16 @@ def test_leg_model_beats_naive_baseline_and_is_calibrated():
     assert abs(m["metrics"]["test_coverage80_cqr"] - 0.8) < 0.05
     assert not m["leakage_audit"]["forbidden_features_present"]
     assert m["time_ranges"]["train"][1] < m["time_ranges"]["test"][0]
+
+
+def test_native_treeshap_matches_shap_library():
+    """pred_contrib is what serving uses for speed; it must agree with shap.TreeExplainer."""
+    import shap
+    from src.models.serving import features_for
+    b = _require("order")
+    from src.models.predict import order_to_raw
+    raw = order_to_raw(_order(), None, b)
+    X = features_for(b, raw)
+    native = b.models["p50"].predict(X, pred_contrib=True)[0, :-1]
+    ref = shap.TreeExplainer(b.models["p50"]).shap_values(X)[0]
+    np.testing.assert_allclose(native, ref, atol=1e-6)

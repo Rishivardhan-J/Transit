@@ -4,7 +4,6 @@ from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-import shap
 
 from src.models.model_registry import Bundle, load_bundle
 
@@ -18,6 +17,10 @@ _LABELS = {
     "to_station_km": ("distance of the stop from the depot", "{:.1f} km"),
     "stop_frac": ("position in the route", "{:.0%} of the way through"),
     "is_peak_hour": ("peak hour", None), "same_zone": ("same delivery zone", None),
+    "stop_idx": ("stop number in the route", "{:.0f}"), "n_stops": ("stops on the route", "{:.0f}"),
+    "historical_delay_index": ("recent station slowness", "{:.2f}x normal"),
+    "to_n_packages": ("packages at this stop", "{:.0f}"), "dlng": ("east-west displacement", "{:+.3f} deg"),
+    "dlat": ("north-south displacement", "{:+.3f} deg"),
 }
 
 
@@ -57,7 +60,8 @@ def _describe(feature: str, value, raw_value) -> str:
 def explain(bundle: Bundle, raw: pd.DataFrame, top_k: int = 5) -> List[List[Dict]]:
     """Per-row top SHAP contributions of the p50 model, in the model's unit, with a readable `text`."""
     X = features_for(bundle, raw)
-    sv = shap.TreeExplainer(bundle.models["p50"]).shap_values(X)
+    # LightGBM's native TreeSHAP: identical attributions to shap.TreeExplainer without its multi-second setup
+    sv = bundle.models["p50"].predict(X, pred_contrib=True)[:, :-1]
     enc = bundle.pipeline.named_steps["encoder"]
     out = []
     for i in range(len(X)):
