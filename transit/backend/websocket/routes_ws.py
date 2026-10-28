@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from jose import JWTError, jwt
 
@@ -8,6 +10,8 @@ from backend.websocket.connection_manager import manager
 
 router = APIRouter()
 POLICY_VIOLATION = 4401
+TRY_AGAIN_LATER = 1013   # Redis unavailable: the client falls back to polling GET /jobs/{id}
+logger = logging.getLogger(__name__)
 
 
 def _authenticate(token: str) -> bool:
@@ -29,6 +33,9 @@ async def _accept_if_authenticated(websocket: WebSocket, token: str) -> bool:
         await websocket.close(code=POLICY_VIOLATION)
         return False
     await websocket.accept()
+    if settings.CELERY_EAGER:   # inline jobs never publish to Redis; the UI polls GET /jobs/{id} instead
+        await websocket.close(code=TRY_AGAIN_LATER)
+        return False
     return True
 
 
@@ -40,6 +47,9 @@ async def websocket_job_status(websocket: WebSocket, job_id: str, token: str = Q
         await manager.subscribe_to_job(job_id, websocket)
     except WebSocketDisconnect:
         pass
+    except Exception as e:
+        logger.debug("websocket subscription unavailable (%s)", e)
+        await websocket.close(code=TRY_AGAIN_LATER)
 
 
 @router.websocket("/routes/{optimizer_run_id}")
@@ -50,3 +60,6 @@ async def websocket_route_updates(websocket: WebSocket, optimizer_run_id: str, t
         await manager.subscribe_to_route(optimizer_run_id, websocket)
     except WebSocketDisconnect:
         pass
+    except Exception as e:
+        logger.debug("websocket subscription unavailable (%s)", e)
+        await websocket.close(code=TRY_AGAIN_LATER)

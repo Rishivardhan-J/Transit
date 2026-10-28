@@ -40,4 +40,10 @@ def job_status(job_id: str, db: Session = Depends(get_db), current_user: User = 
     run = db.get(DBOptimizerRun, job_id)
     if run is None:
         return {"job_id": job_id, "status": "pending"}
-    return {"job_id": job_id, "status": run.status, "optimizer_run_id": run.id, "error": run.error}
+    out = {"job_id": job_id, "status": run.status, "optimizer_run_id": run.id, "error": run.error}
+    if run.status == "completed":
+        m = run.metrics or {}
+        out["result"] = {"routes": m.get("vehicles_used"), "unassigned": len(run.unassigned or []),
+                         "predicted_late": m.get("predicted_late"), "total_distance": m.get("total_distance"),
+                         "total_cost": m.get("total_cost")}
+    return out

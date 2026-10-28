@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/endpoints'
 import { wsUrl } from '../api/client'
@@ -30,10 +30,24 @@ export function useOptimizationJob() {
     poll: async () => {
       if (!job.jobId) return
       const s = await api.job(job.jobId)
-      if (s.status === 'completed') finish({ status: 'completed', progress: 100, stage: 'done' })
+      if (s.status === 'completed') finish({ status: 'completed', progress: 100, stage: 'done', result: s.result })
       else if (s.status === 'failed') finish({ status: 'failed', error: s.error ?? 'Optimization failed' })
     },
   })
+
+  // The socket can stay silent (Redis down, job already finished before it connected), so always poll too.
+  const pollRef = useRef<() => Promise<void>>(async () => {})
+  pollRef.current = async () => {
+    if (!job.jobId) return
+    const s = await api.job(job.jobId)
+    if (s.status === 'completed') finish({ status: 'completed', progress: 100, stage: 'done', result: s.result })
+    else if (s.status === 'failed') finish({ status: 'failed', error: s.error ?? 'Optimization failed' })
+  }
+  useEffect(() => {
+    if (!job.jobId || job.status !== 'running') return
+    const t = setInterval(() => { void pollRef.current().catch(() => {}) }, 1500)
+    return () => clearInterval(t)
+  }, [job.jobId, job.status])
 
   const start = useCallback(async (body: Parameters<typeof api.optimize>[0]) => {
     setJob({ jobId: null, status: 'running', stage: 'queued', progress: 0 })

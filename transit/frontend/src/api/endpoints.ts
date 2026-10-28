@@ -25,7 +25,7 @@ export const api = {
   },
   optimize: async (body: { solver_type: string; weight_config: object; risk_lambda?: number; max_runtime_s?: number }) =>
     (await apiClient.post<{ job_id: string }>('/routes/optimize', body)).data,
-  job: (id: string) => get<{ status: string; optimizer_run_id?: string; error?: string }>(`/jobs/${id}`),
+  job: (id: string) => get<{ status: string; optimizer_run_id?: string; error?: string; result?: Record<string, unknown> }>(`/jobs/${id}`),
   whatIf: async (w: Weights, opts: { commit?: boolean; max_runtime_s?: number } = {}) =>
     (await apiClient.post<WhatIfResponse>('/routes/whatif', { ...w, ...opts })).data,
   disrupt: async (event: DisruptionEvent) => (await apiClient.post<{ job_id: string }>('/routes/disrupt', { event })).data,

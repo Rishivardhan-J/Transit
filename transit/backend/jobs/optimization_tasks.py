@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from typing import List, Optional
 
 import redis
@@ -12,6 +13,8 @@ from backend.services import optimization as svc
 
 logger = logging.getLogger(__name__)
 _redis = None
+_down_until = 0.0   # circuit breaker: after a failed publish, skip Redis for a while instead of stalling every progress update
+_COOLDOWN_S = 30.0
 
 
 def _client():
@@ -23,9 +26,13 @@ def _client():
 
 def publish(channel: str, payload: dict) -> None:
     """Best-effort pub/sub: clients fall back to polling GET /jobs/{id} if Redis is unavailable."""
+    global _down_until
+    if settings.CELERY_EAGER or time.monotonic() < _down_until:
+        return
     try:
         _client().publish(channel, json.dumps(payload, default=str))
     except Exception as e:
+        _down_until = time.monotonic() + _COOLDOWN_S
         logger.debug("redis publish skipped (%s)", e)
 
 

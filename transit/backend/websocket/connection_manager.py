@@ -1,5 +1,7 @@
-import redis.asyncio as redis
+import asyncio
 import json
+
+import redis.asyncio as redis
 from fastapi import WebSocket
 from backend.config import settings
 
@@ -9,7 +11,7 @@ class ConnectionManager:
         
     async def subscribe_to_job(self, job_id: str, websocket: WebSocket):
         pubsub = self.redis.pubsub()
-        await pubsub.subscribe(f"job_updates:{job_id}")
+        await asyncio.wait_for(pubsub.subscribe(f"job_updates:{job_id}"), timeout=2.0)
         
         try:
             while True:
@@ -24,7 +26,7 @@ class ConnectionManager:
             
     async def subscribe_to_route(self, optimizer_run_id: str, websocket: WebSocket):
         pubsub = self.redis.pubsub()
-        await pubsub.subscribe(f"route_updates:{optimizer_run_id}")
+        await asyncio.wait_for(pubsub.subscribe(f"route_updates:{optimizer_run_id}"), timeout=2.0)
         
         try:
             while True:
