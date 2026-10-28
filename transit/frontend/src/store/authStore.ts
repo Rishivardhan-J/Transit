@@ -1,43 +1,43 @@
 import { create } from 'zustand'
+import type { Role } from '../api/types'
 
-export type Role = 'manager' | 'researcher' | 'admin'
+export type { Role }
+
+const read = (k: string) => { try { return localStorage.getItem(k) } catch { return null } }
+const write = (k: string, v: string | null) => {
+  try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v) } catch { /* storage unavailable */ }
+}
 
 interface AuthState {
   token: string | null
   role: Role | null
+  email: string | null
   isResearchMode: boolean
-  setAuth: (token: string, role: Role) => void
+  setAuth: (token: string, role: Role, email: string) => void
   logout: () => void
-  toggleResearchMode: () => void
+  setResearchMode: (on: boolean) => void
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  token: localStorage.getItem('token'),
-  role: localStorage.getItem('role') as Role | null,
-  isResearchMode: localStorage.getItem('isResearchMode') === 'true',
-  setAuth: (token, role) => {
-    localStorage.setItem('token', token)
-    localStorage.setItem('role', role)
-    // Research mode is off by default when logging in, unless they are already in it.
-    // Let's reset it to false on new login.
-    localStorage.setItem('isResearchMode', 'false')
-    set({ token, role, isResearchMode: false })
+export const useAuthStore = create<AuthState>((set, get) => ({
+  token: read('token'),
+  role: read('role') as Role | null,
+  email: read('email'),
+  isResearchMode: read('isResearchMode') === 'true',
+  setAuth: (token, role, email) => {
+    write('token', token); write('role', role); write('email', email); write('isResearchMode', 'false')
+    set({ token, role, email, isResearchMode: false })
   },
   logout: () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('role')
-    localStorage.removeItem('isResearchMode')
-    set({ token: null, role: null, isResearchMode: false })
+    ;['token', 'role', 'email', 'isResearchMode'].forEach((k) => write(k, null))
+    set({ token: null, role: null, email: null, isResearchMode: false })
   },
-  toggleResearchMode: () => {
-    set((state) => {
-      // Only researchers or admins can use research mode
-      if (state.role === 'researcher' || state.role === 'admin') {
-        const newValue = !state.isResearchMode
-        localStorage.setItem('isResearchMode', String(newValue))
-        return { isResearchMode: newValue }
-      }
-      return state
-    })
-  }
+  // Enforced server-side too (403); this only controls what the UI shows.
+  setResearchMode: (on) => {
+    const { role } = get()
+    if (role !== 'researcher' && role !== 'admin') return
+    write('isResearchMode', String(on))
+    set({ isResearchMode: on })
+  },
 }))
+
+export const canUseResearch = (role: Role | null) => role === 'researcher' || role === 'admin'

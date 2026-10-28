@@ -17,6 +17,8 @@ celery_app.conf.update(
     # Time limits to prevent runaway tasks while allowing legitimate 30s solves
     task_soft_time_limit=120,
     task_time_limit=150,
+    task_always_eager=settings.CELERY_EAGER,
+    task_eager_propagates=settings.CELERY_EAGER,
     beat_schedule={
         'sweep-late-orders-every-minute': {
             'task': 'backend.jobs.maintenance_tasks.sweep_late_orders',

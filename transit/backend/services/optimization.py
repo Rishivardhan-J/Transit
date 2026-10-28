@@ -203,10 +203,13 @@ def serialize_plan(problem: dict, result: SolveResult, preds: Dict[str, dict]) -
             "route_id": r.route_id, "vehicle_id": r.vehicle_id, "total_distance_km": r.total_distance_km,
             "total_time_min": r.total_predicted_time_min, "total_cost": r.total_cost, "stops": stops,
         })
+    by_id = {o.order_id: o for o in problem["orders"]}
+    unassigned = [{**u, "lat": by_id[u["order_id"]].delivery_lat, "lng": by_id[u["order_id"]].delivery_lng,
+                   "priority": by_id[u["order_id"]].priority.value} for u in result.unassigned if u["order_id"] in by_id]
     return {
         "run_id": result.run_id, "solver": result.solver, "time_model": problem.get("time_model"),
         "depot": {"lat": problem["depot_lat"], "lng": problem["depot_lng"]},
-        "routes": stops_by_route, "unassigned": result.unassigned,
+        "routes": stops_by_route, "unassigned": unassigned,
     }
 
 
@@ -416,7 +419,10 @@ def plan_from_db(db: Session, run_id: str) -> dict:
     return {
         "run_id": run_id, "solver": run.solver_type, "time_model": run.time_model, "status": run.status,
         "depot": {"lat": v0.current_lat, "lng": v0.current_lng} if v0 else None,
-        "routes": out_routes, "unassigned": run.unassigned or [],
+        "routes": out_routes,
+        "unassigned": [{**u, "lat": orders[u["order_id"]].delivery_lat, "lng": orders[u["order_id"]].delivery_lng,
+                        "priority": orders[u["order_id"]].priority.value}
+                       for u in (run.unassigned or []) if u["order_id"] in orders],
         "metrics": run.metrics, "baseline_metrics": run.baseline_metrics, "parent_run_id": run.parent_run_id,
         "event": run.event, "weights": run.weight_config, "created_at": run.created_at.isoformat() if run.created_at else None,
     }
