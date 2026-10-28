@@ -124,8 +124,8 @@ def test_explain_real_model_predictions(client, override_user, mock_manager_user
     data2 = resp2.json()
     
     # Must contain model_version
-    assert "model_version" in data1 and data1["model_version"].startswith("lightgbm_")
-    assert "model_version" in data2 and data2["model_version"].startswith("lightgbm_")
+    assert "model_version" in data1 and data1["model_version"].startswith("order_")
+    assert "model_version" in data2 and data2["model_version"].startswith("order_")
     
     # Must fail if response matches old stub values
     stub_shap = [{"feature": "distance", "value": 0.5}, {"feature": "priority", "value": 0.2}]

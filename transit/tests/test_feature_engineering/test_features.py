@@ -30,7 +30,7 @@ def test_leakage_guard():
 
 
 def test_pipeline_determinism():
-    pipeline = build_feature_pipeline()
+    pipeline = build_feature_pipeline('legacy')
     
     df = pd.DataFrame({
         'pickup_lat': [37.7749],

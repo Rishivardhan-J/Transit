@@ -23,7 +23,6 @@ def get_eta(req: PredictRequest, current_user: User = Depends(get_current_user))
             order=req.order,
             vehicle=req.vehicle,
             as_of_timestamp=req.order.time_window_start.isoformat(),
-            pipeline_path="results/models/feature_pipeline_latest.pkl"
         )
         return prediction
     except Exception as e:
@@ -68,7 +67,6 @@ def explain_eta(order_id: str, db: Session = Depends(get_db), current_user: User
             order=order,
             vehicle=vehicle,
             as_of_timestamp=order.time_window_start.isoformat(),
-            pipeline_path="results/models/feature_pipeline_latest.pkl"
         )
         # Format the response as requested: {"predicted_eta_mins": int, "shap_values": [{"feature": str, "value": float}]}
         # Prediction returns shap_top_features as: [{"feature": str, "value": any, "impact_minutes": float}]
@@ -77,11 +75,15 @@ def explain_eta(order_id: str, db: Session = Depends(get_db), current_user: User
         for feat in prediction.shap_top_features:
             formatted_shap.append({
                 "feature": feat["feature"],
-                "value": feat["impact_minutes"]
+                "value": feat["impact_minutes"],
+                "text": feat.get("text", feat["feature"]),
             })
-            
+
         return {
             "predicted_eta_mins": int(prediction.predicted_time_p50),
+            "p10_mins": round(prediction.predicted_time_p10, 1),
+            "p50_mins": round(prediction.predicted_time_p50, 1),
+            "p90_mins": round(prediction.predicted_time_p90, 1),
             "model_version": prediction.model_version,
             "shap_values": formatted_shap
         }

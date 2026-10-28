@@ -46,3 +46,19 @@ def get_time_series_cv(n_splits: int = 5):
     Returns a TimeSeriesSplit object for cross-validation during hyperparameter search.
     """
     return TimeSeriesSplit(n_splits=n_splits)
+
+
+def split_by_time(df: pd.DataFrame, time_col: str, train_ratio: float = 0.70, val_ratio: float = 0.15):
+    """Grouped chronological split: rows sharing a timestamp (e.g. all legs of one calendar day)
+    never straddle two sets, and every validation/test row is later than every training row."""
+    df = df.sort_values(time_col, kind="stable").reset_index(drop=True)
+    counts = df.groupby(time_col, sort=True).size()
+    cum = counts.cumsum() / len(df)
+    train_end = cum.index[(cum >= train_ratio).values.argmax()]
+    val_end = cum.index[(cum >= train_ratio + val_ratio).values.argmax()]
+    train = df[df[time_col] <= train_end]
+    val = df[(df[time_col] > train_end) & (df[time_col] <= val_end)]
+    test = df[df[time_col] > val_end]
+    if min(len(train), len(val), len(test)) == 0:
+        raise ValueError("Not enough distinct timestamps to build train/val/test splits.")
+    return train, val, test
