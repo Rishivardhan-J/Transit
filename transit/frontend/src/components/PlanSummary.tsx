@@ -23,11 +23,11 @@ export function MetricsCompare({ current, next, delta }: { current: Metrics | nu
           <div key={r.key} className="flex items-center justify-between gap-3 py-3">
             <div>
               <Text variant="secondary" size={12}>{r.label}</Text>
-              <Text size={20} weight="semibold" className="tabular-nums">{fmtNum(next[r.key] as number, r.digits)}<span className="text-12 text-text-muted ml-1">{r.unit}</span></Text>
+              <Text size={20} weight="semibold" className="tabular-nums">{fmtNum(next[r.key] as number, r.digits)}<span className="text-12 text-text-secondary ml-1">{r.unit}</span></Text>
             </div>
             <div className="text-right">
               {current ? <StatusBadge tone={tone} label={`${fmtDelta(d, r.digits)} ${r.unit ?? ''}`.trim()} /> : null}
-              {current && <Text variant="muted" size={12} className="mt-1">was {fmtNum(current[r.key] as number, r.digits)}</Text>}
+              {current && <Text variant="secondary" size={12} className="mt-1">was {fmtNum(current[r.key] as number, r.digits)}</Text>}
             </div>
           </div>
         )

@@ -2,7 +2,7 @@ import { cn, Text } from './ui'
 
 /** Signed contributions in minutes: amber pushes the arrival later, blue pulls it earlier. Text is always shown. */
 export function ShapBars({ items }: { items: { feature: string; value: number; text?: string }[] }) {
-  if (!items.length) return <Text variant="muted" size={12}>No attribution available for this stop.</Text>
+  if (!items.length) return <Text variant="secondary" size={12}>No attribution available for this stop.</Text>
   const max = Math.max(...items.map((i) => Math.abs(i.value)), 0.001)
   return (
     <ul className="flex flex-col gap-3">

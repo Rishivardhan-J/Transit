@@ -21,13 +21,18 @@ services:
 
   api:
     build: .
-    command: bash -c "uvicorn backend.main:app --host 0.0.0.0 --port 8000"
+    command: bash -c "alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8000"
     volumes:
       - .:/app:z
     environment:
       - PYTHONPATH=/app
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     env_file:
       - .env
     depends_on:
@@ -55,6 +60,25 @@ services:
     depends_on:
       - postgres
       - redis
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+        VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN:-}
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    command: mlflow ui --host 0.0.0.0 --port 5000 --backend-store-uri sqlite:////mlruns/mlruns.db
+    volumes:
+      - ./results:/mlruns:z
+    ports:
+      - "5000:5000"
 
 volumes:
   postgres_data:

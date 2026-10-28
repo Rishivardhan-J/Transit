@@ -51,14 +51,14 @@ export function MapView() {
           <div className="flex items-center gap-2 bg-surface-secondary border-1 border-border-default rounded-md px-3 h-control-h">
             <Search className="h-icon w-icon text-text-muted shrink-0" aria-hidden />
             <input aria-label="Search orders or vehicles" placeholder="Search order or vehicle" value={query} onChange={(e) => setQuery(e.target.value)}
-              className="bg-transparent w-full text-14 placeholder:text-text-muted outline-none" />
+              className="bg-transparent w-full text-14 placeholder:text-text-secondary outline-none" />
           </div>
           {matches.length > 0 && (
             <ul className="bg-surface-secondary border-1 border-border-default rounded-md overflow-hidden">
               {matches.map((m) => (
                 <li key={m.kind + m.id}>
                   <button className="w-full flex justify-between px-3 py-2 text-14 hover:bg-surface-dominant text-left" onClick={() => { if (m.kind !== 'vehicle') select(m.id); setQuery('') }}>
-                    <span>{m.id}</span><span className="text-12 text-text-muted">{m.kind}</span>
+                    <span>{m.id}</span><span className="text-12 text-text-secondary">{m.kind}</span>
                   </button>
                 </li>
               ))}
@@ -67,7 +67,7 @@ export function MapView() {
           <div className="flex flex-wrap gap-1" aria-label="Filter vehicles">
             {vehicles.map((v, i) => (
               <button key={v} aria-pressed={!hidden.has(v)} onClick={() => toggleVehicle(v)}
-                className={cn('inline-flex items-center gap-1 h-8 px-2 rounded-full border-1 text-12', hidden.has(v) ? 'border-border-default text-text-muted bg-surface-secondary' : 'border-border-hover text-text-primary bg-surface-secondary')}>
+                className={cn('inline-flex items-center gap-1 h-8 px-2 rounded-full border-1 text-12', hidden.has(v) ? 'border-border-default text-text-secondary bg-surface-secondary' : 'border-border-hover text-text-primary bg-surface-secondary')}>
                 <span className="h-2 w-2 rounded-full" style={{ background: vehicleColor(i), opacity: hidden.has(v) ? 0.3 : 1 }} aria-hidden />{v}
               </button>
             ))}

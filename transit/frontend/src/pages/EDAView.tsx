@@ -98,7 +98,7 @@ function UploadCard() {
           className={cn('flex flex-col items-start gap-2 p-6 border-1 border-dashed rounded-md cursor-pointer transition-colors duration-150', drag ? 'border-accent bg-surface-dominant' : 'border-border-default hover:border-border-hover')}>
           <Upload className="h-icon-lg w-icon-lg text-text-muted" aria-hidden />
           <Text weight="medium">{file ? file.name : 'Drop a file here or click to browse'}</Text>
-          <Text variant="muted" size={12}>Required columns: order_id, pickup/delivery lat+lng, demand_weight, time_window_start/end, service_time_minutes, created_at</Text>
+          <Text variant="secondary" size={12}>Required columns: order_id, pickup/delivery lat+lng, demand_weight, time_window_start/end, service_time_minutes, created_at</Text>
           <input ref={input} type="file" accept=".csv,.parquet" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
         </div>
         {validate.isPending && <Skeleton className="h-8 w-full" />}

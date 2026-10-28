@@ -57,7 +57,7 @@ export function Login() {
           <Button type="submit" loading={busy}>Sign in</Button>
         </form>
         <div className="flex flex-col gap-2">
-          <Text variant="muted" size={12}>Demo accounts (password: transit-demo)</Text>
+          <Text variant="secondary" size={12}>Demo accounts (password: transit-demo)</Text>
           <div className="flex flex-wrap gap-2">
             {DEMO.map((d) => (
               <Button key={d.email} type="button" variant="outline" className="h-8 px-3 text-12"

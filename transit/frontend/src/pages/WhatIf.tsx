@@ -71,7 +71,7 @@ export function WhatIf() {
             {WEIGHT_KEYS.map((k) => (
               <div key={k} className="flex flex-col gap-1">
                 <Slider label={LABELS[k].label} value={weights[k]} onChange={(v) => setWeights((w) => setWeight(w, k, v))} format={(v) => `${Math.round(v * 100)}%`} />
-                <Text variant="muted" size={12}>{LABELS[k].hint}</Text>
+                <Text variant="secondary" size={12}>{LABELS[k].hint}</Text>
               </div>
             ))}
             <Button onClick={apply} loading={applying} disabled={!result || busy} icon={<CheckCircle2 className="h-icon w-icon" aria-hidden />}>Apply this plan</Button>

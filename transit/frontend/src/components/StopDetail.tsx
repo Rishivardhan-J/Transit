@@ -53,7 +53,7 @@ export function StopDetail({ plan, orderId }: { plan: Plan; orderId: string }) {
             <>
               {d.leg_minutes && <Text variant="secondary" size={12}>Leg: {d.leg_minutes.p10.toFixed(1)} – {d.leg_minutes.p90.toFixed(1)} min (median {d.leg_minutes.p50.toFixed(1)})</Text>}
               <ShapBars items={d.shap_values} />
-              <Text variant="muted" size={12}>Model {d.model_version}. Amber lengthens the leg, blue shortens it.</Text>
+              <Text variant="secondary" size={12}>Model {d.model_version}. Amber lengthens the leg, blue shortens it.</Text>
             </>
           )}
         </QueryBoundary>

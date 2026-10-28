@@ -114,7 +114,7 @@ function ModelLine({ title, m }: { title: string; m: { version: string; unit: st
     <div className="flex flex-col gap-1">
       <Text weight="medium">{title}</Text>
       <Text variant="secondary" size={12}>MAE {fmtNum(m.mae)} {m.unit} · R² {fmtNum(m.r2, 3)} · 80% interval covers {fmtNum(m.coverage80 * 100, 0)}%</Text>
-      <Text variant="muted" size={12}>{m.version}</Text>
+      <Text variant="secondary" size={12}>{m.version}</Text>
     </div>
   )
 }

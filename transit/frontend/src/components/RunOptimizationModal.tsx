@@ -51,7 +51,7 @@ export function RunOptimizationModal({ open, onClose }: { open: boolean; onClose
             </div>
             <div className="flex items-center justify-between">
               <Text variant="secondary" size={12}>{job.stage || 'starting'}</Text>
-              <Text variant="muted" size={12}>{channel === 'live' ? 'live updates' : channel === 'polling' ? 'polling' : ''}</Text>
+              <Text variant="secondary" size={12}>{channel === 'live' ? 'live updates' : channel === 'polling' ? 'polling' : ''}</Text>
             </div>
             {job.status === 'completed' && job.result && (
               <div className="flex flex-wrap items-center gap-2">
